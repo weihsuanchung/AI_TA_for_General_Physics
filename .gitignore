@@ -1,0 +1,10 @@
+# 忽略機密檔案
+.streamlit/secrets.toml
+
+# 忽略 Python 產生的暫存檔
+__pycache__/
+*.pyc
+
+# 忽略虛擬環境 (如果你有建立的話)
+venv/
+.env
