@@ -84,11 +84,11 @@ st.title("AI Teaching Assistant for General Physics")
 st.caption("Hello! I'm your AI teaching assistant for general physics. Feel free to ask me any physics-related questions!")
 
 with st.sidebar:
-    st.title("⚙️ 課程設定")
+    st.title("⚙️ Course Settings")
     
     # 下拉式選單 (Selectbox) - 適合讓學生選擇當前學習的單元
     chapter = st.selectbox(
-        "選擇物理單元",
+        "Chapter",
         ("Newtonian Mechanics", "Electromagnetism", "Thermodynamics", "Fluid Mechanics", "Quantum Physics", "Relativity")
     )
         
