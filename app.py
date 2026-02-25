@@ -80,8 +80,8 @@ genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 model = genai.GenerativeModel('gemini-3-flash-preview')
 
 # 設定網頁標題
-st.title("普物專屬 AI 助教")
-st.caption("哈囉！我是你的普通物理 AI 助教。不管是牛頓力學、電磁學還是剛體轉動，都可以問我喔！")
+st.title("AI Teaching Assistant for General Physics")
+st.caption("Hello! I'm your AI teaching assistant for general physics. Feel free to ask me any physics-related questions!")
 
 # 3. 初始化對話歷史紀錄
 if "messages" not in st.session_state:
@@ -93,7 +93,7 @@ for message in st.session_state.messages:
         st.markdown(message["content"])
 
 # 4. 接收使用者輸入
-if prompt := st.chat_input("你想討論什麼物理問題？"):
+if prompt := st.chat_input("What physics question do you have in mind?"):
     
     # 顯示並儲存使用者的訊息
     st.chat_message("user").markdown(prompt)
@@ -111,7 +111,7 @@ if prompt := st.chat_input("你想討論什麼物理問題？"):
     # 顯示 AI 助教的訊息，並使用串流效果
     with st.chat_message("assistant"):
         # 模擬 AI 思考的停頓感
-        with st.spinner('思考中...'):
+        with st.spinner('Thinking...'):
             time.sleep(1) 
         # 呼叫 API 並設定 stream=True
         response = chat.send_message(prompt, stream=True)
