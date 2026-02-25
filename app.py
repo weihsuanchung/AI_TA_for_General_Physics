@@ -83,6 +83,27 @@ model = genai.GenerativeModel('gemini-3-flash-preview')
 st.title("AI Teaching Assistant for General Physics")
 st.caption("Hello! I'm your AI teaching assistant for general physics. Feel free to ask me any physics-related questions!")
 
+with st.sidebar:
+    st.title("⚙️ 課程設定")
+    
+    # 下拉式選單 (Selectbox) - 適合讓學生選擇當前學習的單元
+    chapter = st.selectbox(
+        "選擇物理單元",
+        ("Newtonian Mechanics", "Electromagnetism", "Thermodynamics", "Fluid Mechanics", "Quantum Physics", "Relativity")
+    )
+        
+    # 單選按鈕 (Radio) - 適合切換 AI 助教的引導模式
+    mode = st.radio(
+        "Choose Teaching Mode",
+        ("General Q&A Mode", "Guided Mode")
+    )
+        
+    # 畫一條分隔線
+    st.divider()
+        
+    # 提示區塊 (Info) - 可以放一些提醒或老師的話
+    # st.info("💡 提示：輸入方程式時可以使用 LaTeX 語法喔！")
+
 # 3. 初始化對話歷史紀錄
 if "messages" not in st.session_state:
     st.session_state.messages = []
