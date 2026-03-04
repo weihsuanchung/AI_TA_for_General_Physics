@@ -80,17 +80,17 @@ genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 model = genai.GenerativeModel('gemini-3-flash-preview')
 
 # 設定網頁標題
-st.title("AI Teaching Assistant for General Physics")
+st.title("AI Teaching Assistant for NTU General Physics")
 st.caption("Hello! I'm your AI teaching assistant for general physics. Feel free to ask me any physics-related questions!")
 
 with st.sidebar:
     st.title("⚙️ Course Settings")
     
-    # 下拉式選單 (Selectbox) - 適合讓學生選擇當前學習的單元
-    chapter = st.selectbox(
-        "Chapter",
-        ("Newtonian Mechanics", "Electromagnetism", "Thermodynamics", "Fluid Mechanics", "Quantum Physics", "Relativity")
-    )
+    # # 下拉式選單 (Selectbox) - 適合讓學生選擇當前學習的單元
+    # chapter = st.selectbox(
+    #     "Chapter",
+    #     ("Newtonian Mechanics", "Electromagnetism", "Thermodynamics", "Fluid Mechanics", "Quantum Physics", "Relativity")
+    # )
         
     # 單選按鈕 (Radio) - 適合切換 AI 助教的引導模式
     mode = st.radio(
