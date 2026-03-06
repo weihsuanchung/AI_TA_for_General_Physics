@@ -2,6 +2,8 @@ import streamlit as st
 import google.generativeai as genai
 import time
 
+# 待辦: 連上Google sheet / 上傳圖片 / 網頁美觀設計 
+
 # 1. 從 Secrets 讀取並設定 API Key
 genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 
