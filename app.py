@@ -1,11 +1,43 @@
 import streamlit as st
 import google.generativeai as genai
 import time
+from PIL import Image
+from datetime import datetime # 新增：用來取得當下時間
 
 # 待辦: 連上Google sheet / 上傳圖片 / 網頁美觀設計 
 
 # 1. 從 Secrets 讀取並設定 API Key
 genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+
+# ================= 新增：學號登入閘門 =================
+# 如果 session_state 裡面還沒有 student_id，就顯示登入畫面
+if "student_id" not in st.session_state:
+    st.title("🎓 Hi! I'm your AI teaching assistant!")
+    st.info("Please enter your student ID to get started. (請輸入學號以開始使用)")
+    
+    # 使用表單 (form) 讓使用者輸入並按下 Enter 或按鈕送出
+    with st.form("login_form"):
+        student_id_input = st.text_input("Student ID (學號):")
+        submitted = st.form_submit_button("Log in (登入)")
+        
+        if submitted:
+            if student_id_input.strip() == "":
+                st.error("Student ID cannot be empty! (學號不能為空！)")
+            else:
+                # 把學號存進 session_state，並重新整理網頁
+                st.session_state.student_id = student_id_input.strip()
+                st.rerun()
+                
+    # st.stop() 非常重要！它會讓程式停在這裡，不執行下面的聊天室 UI
+    st.stop()
+# ======================================================
+
+# 如果程式能走到這裡，代表學生已經登入了！
+# 你可以在側邊欄或標題顯示他的學號，讓他知道系統有認得他
+st.sidebar.success(f"Student ID: {st.session_state.student_id}")
+if st.sidebar.button("Log out (登出)"):
+    del st.session_state.student_id
+    st.rerun()
 
 # 2. 初始化 Gemini 模型
 ta_instructions ="""
@@ -27,6 +59,12 @@ model = genai.GenerativeModel(
 # 設定網頁標題
 st.title("AI Teaching Assistant for NTU General Physics")
 st.caption("Hello! I'm your AI teaching assistant for general physics. Feel free to ask me any physics-related questions!")
+
+# 圖片上傳區塊
+uploaded_file = st.file_uploader("Upload a physics image (optional)", type=["jpg", "jpeg", "png"])
+if uploaded_file is not None:
+    image = Image.open(uploaded_file)
+    st.image(image, caption="Uploaded Image", use_container_width=True)
 
 # with st.sidebar:
 #     # st.title("⚙️ Course Settings")
@@ -70,6 +108,19 @@ if prompt := st.chat_input("What physics problem would you like to discuss?"):
     st.chat_message("user").markdown(prompt)
     st.session_state.guided_messages.append({"role": "user", "content": prompt})
 
+    # ================= 預留資料庫紀錄區塊 =================
+    # 這裡就是未來要寫入 Google Sheets 的 4 個欄位資料
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    log_data = {
+        "student_id": st.session_state.student_id,
+        "time": current_time,
+        "mode": "Guided Mode",
+        "question": prompt
+    }
+    # (等我們把 Google Sheets 的金鑰設定好，就會在這裡加入寫入的程式碼)
+    print("準備寫入資料庫：", log_data) # 先印在終端機檢查看看
+    # =====================================================
+
     gemini_history = []
     for msg in st.session_state.guided_messages[:-1]:
         role = "user" if msg["role"] == "user" else "model"
@@ -90,7 +141,6 @@ if prompt := st.chat_input("What physics problem would you like to discuss?"):
         full_response = st.write_stream(stream_generator())
         
     st.session_state.guided_messages.append({"role": "assistant", "content": full_response}) 
-    # (注意：General QA 頁面的變數是 qa_messages，記得對應改好)
 
     # 顯示 AI 助教的訊息，並使用串流效果
     # with st.chat_message("assistant"):
