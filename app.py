@@ -61,7 +61,7 @@ st.title("AI Teaching Assistant for NTU General Physics")
 st.caption("Hello! I'm your AI teaching assistant for general physics. Feel free to ask me any physics-related questions!")
 
 # 圖片上傳區塊
-uploaded_file = st.file_uploader("Upload a physics image (optional)", type=["jpg", "jpeg", "png"])
+uploaded_file = st.file_uploader("Upload an image (optional)", type=["jpg", "jpeg", "png"])
 
 image_to_send = None
 if uploaded_file is not None:

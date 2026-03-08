@@ -3,6 +3,29 @@ import google.generativeai as genai
 
 genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 
+# ================= 新增：學號登入閘門 =================
+# 如果 session_state 裡面還沒有 student_id，就顯示登入畫面
+if "student_id" not in st.session_state:
+    st.title("🎓 Hi! I'm your AI teaching assistant!")
+    st.info("Please enter your student ID to get started. (請輸入學號以開始使用)")
+    
+    # 使用表單 (form) 讓使用者輸入並按下 Enter 或按鈕送出
+    with st.form("login_form"):
+        student_id_input = st.text_input("Student ID (學號):")
+        submitted = st.form_submit_button("Log in (登入)")
+        
+        if submitted:
+            if student_id_input.strip() == "":
+                st.error("Student ID cannot be empty! (學號不能為空！)")
+            else:
+                # 把學號存進 session_state，並重新整理網頁
+                st.session_state.student_id = student_id_input.strip()
+                st.rerun()
+                
+    # st.stop() 非常重要！它會讓程式停在這裡，不執行下面的聊天室 UI
+    st.stop()
+# ======================================================
+
 general_qa_instruction = """
 You are an AI teaching assistant dedicated to university-level General Physics.
 You are currently in 【General QA Mode】.
