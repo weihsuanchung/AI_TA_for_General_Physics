@@ -137,7 +137,7 @@ if prompt := st.chat_input("What physics problem would you like to discuss?"):
         SHEET_URL = "https://docs.google.com/spreadsheets/d/1BP0F_gTlwAJkcYFRqDDAnX3O4utJdnKg3pCthVBlHiI/edit?usp=sharing"
         
         # 3. 讀取目前試算表裡的舊資料
-        existing_data = conn.read(spreadsheet=SHEET_URL, usecols=[0, 1, 2, 3])
+        existing_data = conn.read(spreadsheet=SHEET_URL, usecols=[0, 1, 2, 3], ttl=0)
         
         # 4. 將新的一筆資料轉換成 DataFrame，然後與舊資料合併
         new_row = pd.DataFrame([log_data])
