@@ -3,7 +3,7 @@ import google.generativeai as genai
 import time
 from PIL import Image
 import pandas as pd
-from datetime import datetime # 新增：用來取得當下時間
+from datetime import datetime, timezone, timedelta
 from streamlit_gsheets import GSheetsConnection
 
 # 待辦: 連上Google sheet / 上傳圖片 / 網頁美觀設計 
@@ -117,42 +117,38 @@ if prompt := st.chat_input("What physics problem would you like to discuss?"):
     st.chat_message("user").markdown(prompt)
     st.session_state.guided_messages.append({"role": "user", "content": prompt, "image": image_to_send})
 
-    # ================= 預留資料庫紀錄區塊 =================
-    # 這裡就是未來要寫入 Google Sheets 的 4 個欄位資料
-    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    # ================= 資料庫紀錄區塊 =================
+    tw_timezone = timezone(timedelta(hours=8))
+    current_time = datetime.now(tw_timezone).strftime("%Y-%m-%d %H:%M:%S")
     log_data = {
         "student_id": st.session_state.student_id,
         "time": current_time,
         "mode": "Guided Mode",
         "question": prompt
     }
-    # (等我們把 Google Sheets 的金鑰設定好，就會在這裡加入寫入的程式碼)
-    # print("準備寫入資料庫：", log_data) # 先印在終端機檢查看看
 
     try:
-        # 1. 建立與 Google Sheets 的連線
+        # 建立與 Google Sheets 的連線
         conn = st.connection("gsheets", type=GSheetsConnection)
         
-        # 2. 請將下方的網址替換成你自己的 Google 試算表網址！
         SHEET_URL = "https://docs.google.com/spreadsheets/d/1BP0F_gTlwAJkcYFRqDDAnX3O4utJdnKg3pCthVBlHiI/edit?usp=sharing"
         
-        # 3. 讀取目前試算表裡的舊資料
+        # 讀取目前試算表裡的舊資料
         existing_data = conn.read(spreadsheet=SHEET_URL, usecols=[0, 1, 2, 3], ttl=0)
         
-        # 4. 將新的一筆資料轉換成 DataFrame，然後與舊資料合併
         new_row = pd.DataFrame([log_data])
-        # 確保欄位名稱與你的 Google Sheet 標題一致 (假設你的標題是這四個)
+
         new_row.columns = ["student id", "time", "mode", "question"] 
         existing_data.columns = ["student id", "time", "mode", "question"]
         
         updated_data = pd.concat([existing_data, new_row], ignore_index=True)
         
-        # 5. 把合併後的資料寫回 Google Sheets
+        # 把合併後的資料寫回 Google Sheets
         conn.update(spreadsheet=SHEET_URL, data=updated_data)
-        print("✅ 成功寫入資料庫！")
+        print("成功寫入資料庫！")
         
     except Exception as e:
-        st.error(f"⚠️ 資料紀錄失敗，但不影響對話。錯誤訊息：{e}")
+        st.error(f"資料紀錄失敗。錯誤訊息：{e}")
     # =====================================================
     # =====================================================
 
@@ -185,23 +181,3 @@ if prompt := st.chat_input("What physics problem would you like to discuss?"):
         full_response = st.write_stream(stream_generator())
         
     st.session_state.guided_messages.append({"role": "assistant", "content": full_response}) 
-
-    # 顯示 AI 助教的訊息，並使用串流效果
-    # with st.chat_message("assistant"):
-    #     # 模擬 AI 思考的停頓感
-    #     with st.spinner('Thinking...'):
-    #         time.sleep(1) 
-    #     # 呼叫 API 並設定 stream=True
-    #     response = chat.send_message(prompt, stream=True)
-        
-    #     # 建立一個產生器來逐字輸出
-    #     def stream_generator():
-    #         for chunk in response:
-    #             if chunk.text:
-    #                 yield chunk.text
-                    
-        # st.write_stream 會自動處理打字機特效，並回傳完整的字串
-    #     full_response = st.write_stream(stream_generator())
-        
-    # # 儲存 AI 的完整回答
-    # st.session_state.messages.append({"role": "assistant", "content": full_response})
