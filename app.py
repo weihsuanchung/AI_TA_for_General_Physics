@@ -2,7 +2,9 @@ import streamlit as st
 import google.generativeai as genai
 import time
 from PIL import Image
+import pandas as pd
 from datetime import datetime # 新增：用來取得當下時間
+from streamlit_gsheets import GSheetsConnection
 
 # 待辦: 連上Google sheet / 上傳圖片 / 網頁美觀設計 
 
@@ -125,7 +127,33 @@ if prompt := st.chat_input("What physics problem would you like to discuss?"):
         "question": prompt
     }
     # (等我們把 Google Sheets 的金鑰設定好，就會在這裡加入寫入的程式碼)
-    print("準備寫入資料庫：", log_data) # 先印在終端機檢查看看
+    # print("準備寫入資料庫：", log_data) # 先印在終端機檢查看看
+
+    try:
+        # 1. 建立與 Google Sheets 的連線
+        conn = st.connection("gsheets", type=GSheetsConnection)
+        
+        # 2. 請將下方的網址替換成你自己的 Google 試算表網址！
+        SHEET_URL = "https://docs.google.com/spreadsheets/d/1BP0F_gTlwAJkcYFRqDDAnX3O4utJdnKg3pCthVBlHiI/edit?usp=sharing"
+        
+        # 3. 讀取目前試算表裡的舊資料
+        existing_data = conn.read(spreadsheet=SHEET_URL, usecols=[0, 1, 2, 3])
+        
+        # 4. 將新的一筆資料轉換成 DataFrame，然後與舊資料合併
+        new_row = pd.DataFrame([log_data])
+        # 確保欄位名稱與你的 Google Sheet 標題一致 (假設你的標題是這四個)
+        new_row.columns = ["student id", "time", "mode", "question"] 
+        existing_data.columns = ["student id", "time", "mode", "question"]
+        
+        updated_data = pd.concat([existing_data, new_row], ignore_index=True)
+        
+        # 5. 把合併後的資料寫回 Google Sheets
+        conn.update(spreadsheet=SHEET_URL, data=updated_data)
+        print("✅ 成功寫入資料庫！")
+        
+    except Exception as e:
+        st.error(f"⚠️ 資料紀錄失敗，但不影響對話。錯誤訊息：{e}")
+    # =====================================================
     # =====================================================
 
     gemini_history = []
