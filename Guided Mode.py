@@ -145,20 +145,35 @@ if prompt := st.chat_input("What physics problem would you like to discuss?", ac
         
         # SHEET_URL = st.secrets["SHEET_URL"] 
         SHEET_URL = 'https://docs.google.com/spreadsheets/d/1BP0F_gTlwAJkcYFRqDDAnX3O4utJdnKg3pCthVBlHiI/edit?usp=sharing'
-        
-        # 讀取目前試算表裡的舊資料
-        existing_data = conn.read(spreadsheet=SHEET_URL, usecols=[0, 1, 2, 3], ttl=0)
-        
-        new_row = pd.DataFrame([log_data])
 
-        new_row.columns = ["student id", "time", "mode", "question"] 
-        existing_data.columns = ["student id", "time", "mode", "question"]
+        # 打開試算表的第一個分頁
+        spreadsheet = conn.client.open_by_url(SHEET_URL)
+        worksheet = spreadsheet.sheet1 
         
-        updated_data = pd.concat([existing_data, new_row], ignore_index=True)
+        # 把要紀錄的資料排成一列 (List 格式)
+        row_to_append = [
+            st.session_state.student_id,
+            current_time,
+            "Guided Mode",
+            safe_text
+        ]
         
-        # 把合併後的資料寫回 Google Sheets
-        conn.update(spreadsheet=SHEET_URL, data=updated_data)
-        print("Successfully logged data to Google Sheets.")
+        # 往下新增一行
+        worksheet.append_row(row_to_append)
+        
+        # # 讀取目前試算表裡的舊資料
+        # existing_data = conn.read(spreadsheet=SHEET_URL, usecols=[0, 1, 2, 3], ttl=0)
+        
+        # new_row = pd.DataFrame([log_data])
+
+        # new_row.columns = ["student id", "time", "mode", "question"] 
+        # existing_data.columns = ["student id", "time", "mode", "question"]
+        
+        # updated_data = pd.concat([existing_data, new_row], ignore_index=True)
+        
+        # # 把合併後的資料寫回 Google Sheets
+        # conn.update(spreadsheet=SHEET_URL, data=updated_data)
+        # print("Successfully logged data to Google Sheets.")
         
     except Exception as e:
         st.error(f"Failed to log data to Google Sheets: {e}")
