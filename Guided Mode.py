@@ -87,8 +87,13 @@ if not st.session_state.pre_test_done:
             row_to_append = [st.session_state.student_id, q1, q2, q3, q4, q5, q6]
             
             try:
+                credentials_dict = dict(st.secrets["connections"]["gsheets"])
+                gc = gspread.service_account_from_dict(credentials_dict)
+                SHEET_URL = "https://docs.google.com/spreadsheets/d/1BP0F_gTlwAJkcYFRqDDAnX3O4utJdnKg3pCthVBlHiI/edit?usp=sharing"
+                sh = gc.open_by_url(SHEET_URL)
+                worksheet2_write = sh.get_worksheet(1)
                 # 寫入第二個分頁
-                worksheet2.append_row(row_to_append)
+                worksheet2_write.append_row(row_to_append)
                 
                 # 標記為已完成，並重新整理網頁
                 st.session_state.pre_test_done = True
