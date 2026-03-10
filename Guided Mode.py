@@ -60,7 +60,7 @@ model = genai.GenerativeModel(
     system_instruction=ta_instructions
 )
 
-st.title("AI Teaching Assistant for NTU General Physics")
+st.title("🌟 Luminer: AI Teaching Assistant - Guided Mode")
 st.caption("Hello! I'm your AI teaching assistant for general physics. Feel free to ask me any physics-related questions!")
 
 

@@ -52,7 +52,7 @@ model = genai.GenerativeModel(
     system_instruction=general_qa_instruction
 )
 
-st.title("AI Teaching Assistant for NTU General Physics - General Q&A Mode")
+st.title("🌟 Luminer: AI Teaching Assistant - General Q&A Mode")
 st.caption("Hello! I'm your AI teaching assistant for general physics. Get complete physics derivations and conceptual breakdowns here!")
 
 if "qa_messages" not in st.session_state:
