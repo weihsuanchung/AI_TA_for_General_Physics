@@ -137,7 +137,7 @@ if prompt := st.chat_input("What physics problem would you like to discuss?", ac
         "student_id": st.session_state.student_id,
         "time": current_time,
         "mode": "Guided Mode",
-        "question": prompt
+        "question": safe_text
     }
 
     try:
@@ -197,14 +197,14 @@ if prompt := st.chat_input("What physics problem would you like to discuss?", ac
     
     chat = model.start_chat(history=gemini_history)
 
-    with st.chat_message("assistant"):
-        # 加入 st.spinner，在等待 API 回應的期間顯示轉圈圈與文字
-        with st.spinner("Thinking..."):
-            # response = chat.send_message(prompt, stream=True)
-            if image_to_send is not None:
-                response = chat.send_message([image_to_send, prompt], stream=True)
-            else:
-                response = chat.send_message(prompt, stream=True)
+    # with st.chat_message("assistant"):
+    #     # 加入 st.spinner，在等待 API 回應的期間顯示轉圈圈與文字
+    #     with st.spinner("Thinking..."):
+    #         # response = chat.send_message(prompt, stream=True)
+    #         if image_to_send is not None:
+    #             response = chat.send_message([image_to_send, prompt], stream=True)
+    #         else:
+    #             response = chat.send_message(prompt, stream=True)
 
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
