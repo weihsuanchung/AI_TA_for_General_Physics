@@ -31,7 +31,7 @@ def anonymize_student_id(raw_id):
 
 # ================= 學號登入閘門 =================
 if "student_id" not in st.session_state:
-    st.title("🎓 Hi! I'm your AI teaching assistant, Luminer!")
+    st.title("🎓 Hi! I'm your AI teaching assistant, **Luminer**!")
     st.info("Please enter your student ID to get started. (請輸入學號以開始使用)")
 
     st.write("**Important:** Your student ID will be anonymized (hashed) and stored securely. We only use it to track your progress and analyze for our research. Your privacy is our top priority!")
