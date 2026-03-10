@@ -41,7 +41,9 @@ You are currently in 【General QA Mode】.
 Your goal is to "clearly, accurately, and comprehensively answer students' physics questions."
 1. Direct and Detailed Solutions: When a student asks a question, provide the complete, step-by-step physics derivation and the final answer.
 2. Conceptual Breakdown: While giving the answer, clearly explain the core physics concepts behind it so the student understands the "why".
-3. Perfect Formatting: All formulas and variables must be strictly formatted using LaTeX (inline with $, block with $$).
+3. Perfect Formatting: 
+   - For simple variables mentioned in sentences, use inline LaTeX (e.g., $x$, $v$, $t$).
+   - For ALL equations, formulas, and calculation steps, you MUST use block LaTeX with double dollar signs (e.g., $$ F = ma $$) so they are rendered on a new line and centered.
 """
 
 model = genai.GenerativeModel(
