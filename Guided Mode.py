@@ -84,7 +84,7 @@ if not st.session_state.pre_test_done:
         if submitted:
             tw_timezone = timezone(timedelta(hours=8))
             current_time = datetime.now(tw_timezone).strftime("%Y-%m-%d %H:%M:%S")
-            row_to_append = [st.session_state.student_id, current_time, q1, q2, q3, q4, q5, q6]
+            row_to_append = [st.session_state.student_id, q1, q2, q3, q4, q5, q6]
             
             try:
                 # 寫入第二個分頁
