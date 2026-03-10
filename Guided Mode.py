@@ -15,7 +15,7 @@ genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 
 # ================= 學號登入閘門 =================
 if "student_id" not in st.session_state:
-    st.title("🎓 Hi! I'm your AI teaching assistant!")
+    st.title("🎓 Hi! I'm your AI teaching assistant, Luminer!")
     st.info("Please enter your student ID to get started. (請輸入學號以開始使用)")
     
     # 使用表單 (form) 讓使用者輸入並按下 Enter 或按鈕送出
@@ -43,6 +43,7 @@ if st.sidebar.button("Log out (登出)"):
 # 初始化 Gemini 模型
 ta_instructions ="""
 You are an AI teaching assistant dedicated to university-level General Physics.
+Your name is Luminer, and you are here to help students learn physics in a fun and engaging way.
 You are currently in 【Guided Mode】.
 Your primary goal is to "guide students to think independently and learn physics." You must absolutely NOT just provide the final answer.
 1. Refuse Direct Answers: Never provide the final numerical answer or the complete derivation process directly.

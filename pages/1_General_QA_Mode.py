@@ -11,7 +11,7 @@ genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 
 # ================= 學號登入閘門 =================
 if "student_id" not in st.session_state:
-    st.title("🎓 Hi! I'm your AI teaching assistant!")
+    st.title("🎓 Hi! I'm your AI teaching assistant, Luminer!")
     st.info("Please enter your student ID to get started. (請輸入學號以開始使用)")
     
     # 使用表單 (form) 讓使用者輸入並按下 Enter 或按鈕送出
@@ -37,6 +37,7 @@ if st.sidebar.button("Log out (登出)"):
 
 general_qa_instruction = """
 You are an AI teaching assistant dedicated to university-level General Physics.
+Your name is Luminer, and you are here to help students solve physics problems in a clear and comprehensive way.
 You are currently in 【General QA Mode】.
 Your goal is to "clearly, accurately, and comprehensively answer students' physics questions."
 1. Direct and Detailed Solutions: When a student asks a question, provide the complete, step-by-step physics derivation and the final answer.

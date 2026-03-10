@@ -1,7 +1,8 @@
+import streamlit as st
 import google.generativeai as genai
 
 # 這裡填入你的 API KEY
-genai.configure(api_key="AIzaSyDlLP5G-5sxlnM-6J2qzzh730Wp6mw2px8")
+genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 
 print("你可以使用的模型有：")
 for m in genai.list_models():
