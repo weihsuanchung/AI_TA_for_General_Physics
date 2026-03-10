@@ -150,8 +150,10 @@ if prompt := st.chat_input("What physics problem would you like to discuss?", ac
         SHEET_URL = 'https://docs.google.com/spreadsheets/d/1BP0F_gTlwAJkcYFRqDDAnX3O4utJdnKg3pCthVBlHiI/edit?usp=sharing'
 
         # 打開試算表的第一個分頁
-        spreadsheet = conn.client.open_by_url(SHEET_URL)
-        worksheet = spreadsheet.sheet1 
+        # spreadsheet = conn.client.open_by_url(SHEET_URL)
+        # worksheet = spreadsheet.sheet1 
+        sh = gc.open_by_url(SHEET_URL)
+        worksheet = sh.sheet1
         
         # 把要紀錄的資料排成一列 (List 格式)
         row_to_append = [
