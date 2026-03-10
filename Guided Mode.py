@@ -74,7 +74,7 @@ if "pre_test_done" not in st.session_state:
         existing_ids = worksheet2.col_values(1)
         
         # 檢查現在登入的學號是不是已經在問卷紀錄裡了
-        if st.session_state.student_id in existing_ids:
+        if st.session_state.anonymous_id in existing_ids:
             st.session_state.pre_test_done = True
         else:
             st.session_state.pre_test_done = False
