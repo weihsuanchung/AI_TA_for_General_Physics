@@ -143,7 +143,8 @@ if prompt := st.chat_input("What physics problem would you like to discuss?", ac
         # 建立與 Google Sheets 的連線
         conn = st.connection("gsheets", type=GSheetsConnection)
         
-        SHEET_URL = st.secrets["SHEET_URL"] 
+        # SHEET_URL = st.secrets["SHEET_URL"] 
+        SHEET_URL = 'https://docs.google.com/spreadsheets/d/1BP0F_gTlwAJkcYFRqDDAnX3O4utJdnKg3pCthVBlHiI/edit?usp=sharing'
         
         # 讀取目前試算表裡的舊資料
         existing_data = conn.read(spreadsheet=SHEET_URL, usecols=[0, 1, 2, 3], ttl=0)
