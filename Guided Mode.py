@@ -1,6 +1,7 @@
 import streamlit as st
 import google.generativeai as genai
 import time
+import gspread
 from PIL import Image
 import pandas as pd
 from datetime import datetime, timezone, timedelta
@@ -141,7 +142,9 @@ if prompt := st.chat_input("What physics problem would you like to discuss?", ac
 
     try:
         # 建立與 Google Sheets 的連線
-        conn = st.connection("gsheets", type=GSheetsConnection)
+        # conn = st.connection("gsheets", type=GSheetsConnection)
+        credentials_dict = dict(st.secrets["connections"]["gsheets"])
+        gc = gspread.service_account_from_dict(credentials_dict)
         
         # SHEET_URL = st.secrets["SHEET_URL"] 
         SHEET_URL = 'https://docs.google.com/spreadsheets/d/1BP0F_gTlwAJkcYFRqDDAnX3O4utJdnKg3pCthVBlHiI/edit?usp=sharing'
