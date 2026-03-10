@@ -245,3 +245,8 @@ if prompt := st.chat_input("Enter your physics question here:", accept_file=True
         full_response = st.write_stream(stream_generator())
         
     st.session_state.qa_messages.append({"role": "assistant", "content": full_response}) 
+
+# ============== contact information =============
+st.sidebar.divider()
+st.sidebar.markdown("**Contact**")
+st.sidebar.markdown("If you encounter any issues or have questions, please contact us at: [b12202069@g.ntu.edu.tw](mailto:b12202069@g.ntu.edu.tw)")
