@@ -34,6 +34,66 @@ if "student_id" not in st.session_state:
     st.stop()
 # ======================================================
 
+# ================= 前測問卷攔截閘門 =================
+if "pre_test_done" not in st.session_state:
+    try:
+        # 連線到 Google Sheets
+        credentials_dict = dict(st.secrets["connections"]["gsheets"])
+        gc = gspread.service_account_from_dict(credentials_dict)
+        SHEET_URL = "https://docs.google.com/spreadsheets/d/1BP0F_gTlwAJkcYFRqDDAnX3O4utJdnKg3pCthVBlHiI/edit?usp=sharing" 
+        sh = gc.open_by_url(SHEET_URL)
+        
+        # 取得第二個分頁 (索引值為 1，因為第一個是 0)
+        worksheet2 = sh.get_worksheet(1) 
+        
+        existing_ids = worksheet2.col_values(1)
+        
+        # 檢查現在登入的學號是不是已經在問卷紀錄裡了
+        if st.session_state.student_id in existing_ids:
+            st.session_state.pre_test_done = True
+        else:
+            st.session_state.pre_test_done = False
+            
+    except Exception as e:
+        st.error(f"Failed to read pre-test status: {e}")
+        st.stop()
+
+# 如果還沒做過問卷，就顯示表單並擋住後面的對話框
+if not st.session_state.pre_test_done:
+    st.title("📝 AI Literacy Survey (pre-test)")
+    st.info("Instructions: Please indicate your level of agreement with the following statements. This will help us understand your current familiarity with AI and physics. (請根據以下陳述選擇你的認同程度，這將幫助我們了解你目前對 AI 和物理的熟悉程度。)")
+    
+    with st.form("pre_test_form"):
+        # 這裡可以自由替換成你想問的問題！
+        q1 = st.slider("1. I know how to ask AI questions that help clarify my understanding. (5 = Strongly Agree, 4 = Agree, 3 = Neutral, 2 = Disagree, 1 = Strongly Disagree)", 1, 5, 3)
+        q2 = st.slider("2. When using AI, I explain my own reasoning or attempt before asking for help. (5 = Strongly Agree, 4 = Agree, 3 = Neutral, 2 = Disagree, 1 = Strongly Disagree)", 1, 5, 3)
+        q3 = st.slider("3. I use AI to help me understand concepts, not just to obtain answers. (5 = Strongly Agree, 4 = Agree, 3 = Neutral, 2 = Disagree, 1 = Strongly Disagree)", 1, 5, 3)
+        q4 = st.slider("4. I evaluate whether AI responses are correct before accepting them. (5 = Strongly Agree, 4 = Agree, 3 = Neutral, 2 = Disagree, 1 = Strongly Disagree)", 1, 5, 3)
+        q5 = st.slider("5. When AI responses are unclear, I ask follow-up questions to improve my understanding. (5 = Strongly Agree, 4 = Agree, 3 = Neutral, 2 = Disagree, 1 = Strongly Disagree)", 1, 5, 3)
+        q6 = st.slider("6. Using AI helps me identify gaps in my understanding. (5 = Strongly Agree, 4 = Agree, 3 = Neutral, 2 = Disagree, 1 = Strongly Disagree)", 1, 5, 3)
+
+        
+        submitted = st.form_submit_button("Submit (送出)")
+        
+        if submitted:
+            tw_timezone = timezone(timedelta(hours=8))
+            current_time = datetime.now(tw_timezone).strftime("%Y-%m-%d %H:%M:%S")
+            row_to_append = [st.session_state.student_id, current_time, q1, q2, q3, q4, q5, q6]
+            
+            try:
+                # 寫入第二個分頁
+                worksheet2.append_row(row_to_append)
+                
+                # 標記為已完成，並重新整理網頁
+                st.session_state.pre_test_done = True
+                st.success("✅ Pre-test submitted successfully! You can now access the AI teaching assistant.")
+                st.rerun()
+            except Exception as e:
+                st.error(f"⚠️ Pre-test submission failed: {e}")
+
+    st.stop()
+# =====================================================
+
 # 在側邊欄或標題顯示學號
 st.sidebar.success(f"Student ID: {st.session_state.student_id}")
 if st.sidebar.button("Log out (登出)"):
