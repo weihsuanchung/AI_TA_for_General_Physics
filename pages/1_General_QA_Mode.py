@@ -134,7 +134,7 @@ Your goal is to "clearly, accurately, and comprehensively answer students' physi
 """
 
 model = genai.GenerativeModel(
-    'gemini-3.1-pro-preview',
+    'gemini-3-flash-preview',
     system_instruction=general_qa_instruction
 )
 

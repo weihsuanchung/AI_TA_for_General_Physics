@@ -142,7 +142,7 @@ Your primary goal is to "guide students to think independently and learn physics
 """
 
 model = genai.GenerativeModel(
-    'gemini-3.1-pro-preview',
+    'gemini-3-flash-preview',
     system_instruction=ta_instructions
 )
 
