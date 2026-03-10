@@ -8,6 +8,7 @@ from datetime import datetime, timezone, timedelta
 from streamlit_gsheets import GSheetsConnection
 
 # 待辦: 連上Google sheet / 上傳圖片 / 網頁美觀設計 
+# 2026/3/10 completed!
 
 # 從 Secrets 讀取並設定 API Key
 genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
@@ -59,37 +60,6 @@ model = genai.GenerativeModel(
 st.title("AI Teaching Assistant for NTU General Physics")
 st.caption("Hello! I'm your AI teaching assistant for general physics. Feel free to ask me any physics-related questions!")
 
-# 圖片上傳區塊
-# uploaded_file = st.file_uploader("Upload an image (optional)", type=["jpg", "jpeg", "png"])
-
-# image_to_send = None
-# if uploaded_file is not None:
-#     # 把檔案讀取指標倒轉回起點
-#     uploaded_file.seek(0)
-#     # 強制轉換為 RGB，避免 PNG 透明背景導致 AI 讀取失敗
-#     image_to_send = Image.open(uploaded_file).convert('RGB')
-#     st.image(image_to_send, caption="Uploaded Image", use_container_width=True)
-
-# with st.sidebar:
-#     # st.title("⚙️ Course Settings")
-    
-#     # # 下拉式選單 (Selectbox) - 適合讓學生選擇當前學習的單元
-#     # chapter = st.selectbox(
-#     #     "Chapter",
-#     #     ("Newtonian Mechanics", "Electromagnetism", "Thermodynamics", "Fluid Mechanics", "Quantum Physics", "Relativity")
-#     # )
-        
-#     # 單選按鈕 (Radio) - 適合切換 AI 助教的引導模式
-#     mode = st.radio(
-#         "Choose Teaching Mode",
-#         ("General Q&A Mode", "Guided Mode")
-#     )
-        
-#     # 畫一條分隔線
-#     st.divider()
-        
-    # 提示區塊 (Info) - 可以放一些提醒或老師的話
-    # st.info("💡 提示：輸入方程式時可以使用 LaTeX 語法喔！")
 
 if "guided_messages" not in st.session_state:
     st.session_state.guided_messages = []
@@ -99,7 +69,7 @@ for message in st.session_state.guided_messages:
         st.markdown(message["content"])
     if "image" in message and message["image"] is not None:
             st.image(message["image"], width=300)
-# # 3. 初始化對話歷史紀錄
+# 初始化對話歷史紀錄
 # if "messages" not in st.session_state:
 #     st.session_state.messages = []
 
@@ -108,7 +78,7 @@ for message in st.session_state.guided_messages:
 #     with st.chat_message(message["role"]):
 #         st.markdown(message["content"])
 
-# 4. 接收使用者輸入
+# 接收使用者輸入
 if prompt := st.chat_input("What physics problem would you like to discuss?", accept_file=True, file_type=["png", "jpg", "jpeg"]):
 
     user_text = prompt.text
