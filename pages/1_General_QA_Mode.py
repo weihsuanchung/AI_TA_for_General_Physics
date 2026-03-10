@@ -1,6 +1,7 @@
 import streamlit as st
 import google.generativeai as genai
 import time
+import hashlib
 import gspread
 from PIL import Image
 import pandas as pd
@@ -8,6 +9,21 @@ from datetime import datetime, timezone, timedelta
 from streamlit_gsheets import GSheetsConnection
 
 genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+
+def anonymize_student_id(raw_id):
+    # 去除頭尾空白，並全部轉成小寫
+    clean_id = str(raw_id).strip().lower()
+    
+    salt = "luminer_secret_ntu_physics" 
+    salted_id = clean_id + salt
+    
+    # 使用 SHA-256 演算法進行hashing
+    hash_object = hashlib.sha256(salted_id.encode('utf-8'))
+    
+    hex_digest = hash_object.hexdigest()
+    anonymous_number = str(int(hex_digest[:8], 16))
+    
+    return anonymous_number
 
 # ================= 學號登入閘門 =================
 if "student_id" not in st.session_state:
@@ -23,8 +39,10 @@ if "student_id" not in st.session_state:
             if student_id_input.strip() == "":
                 st.error("Student ID cannot be empty! (學號不能為空！)")
             else:
+                anonymous_id = anonymize_student_id(student_id_input)
                 # 把學號存進 session_state，並重新整理網頁
                 st.session_state.student_id = student_id_input.strip()
+                st.session_state.anonymous_id = anonymous_id
                 st.rerun()
                 
     st.stop()
@@ -33,6 +51,7 @@ if "student_id" not in st.session_state:
 st.sidebar.success(f"Student ID: {st.session_state.student_id}")
 if st.sidebar.button("Log out (登出)"):
     del st.session_state.student_id
+    del st.session_state.anonymous_id
     st.rerun()
 
 general_qa_instruction = """
@@ -89,7 +108,8 @@ if prompt := st.chat_input("Enter your physics question here:", accept_file=True
     tw_timezone = timezone(timedelta(hours=8))
     current_time = datetime.now(tw_timezone).strftime("%Y-%m-%d %H:%M:%S")
     log_data = {
-        "student_id": st.session_state.student_id,
+        # "student_id": st.session_state.student_id,
+        "anonymous_id": st.session_state.anonymous_id,
         "time": current_time,
         "mode": "General Q&A Mode",
         "question": safe_text
@@ -112,7 +132,7 @@ if prompt := st.chat_input("Enter your physics question here:", accept_file=True
         
         # 把要紀錄的資料排成一列 (List 格式)
         row_to_append = [
-            st.session_state.student_id,
+            st.session_state.anonymous_id,
             current_time,
             "General Q&A Mode",
             safe_text
