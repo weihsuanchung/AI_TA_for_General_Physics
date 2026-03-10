@@ -8,11 +8,10 @@ from streamlit_gsheets import GSheetsConnection
 
 # 待辦: 連上Google sheet / 上傳圖片 / 網頁美觀設計 
 
-# 1. 從 Secrets 讀取並設定 API Key
+# 從 Secrets 讀取並設定 API Key
 genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 
-# ================= 新增：學號登入閘門 =================
-# 如果 session_state 裡面還沒有 student_id，就顯示登入畫面
+# ================= 學號登入閘門 =================
 if "student_id" not in st.session_state:
     st.title("🎓 Hi! I'm your AI teaching assistant!")
     st.info("Please enter your student ID to get started. (請輸入學號以開始使用)")
@@ -30,18 +29,16 @@ if "student_id" not in st.session_state:
                 st.session_state.student_id = student_id_input.strip()
                 st.rerun()
                 
-    # st.stop() 非常重要！它會讓程式停在這裡，不執行下面的聊天室 UI
     st.stop()
 # ======================================================
 
-# 如果程式能走到這裡，代表學生已經登入了！
-# 你可以在側邊欄或標題顯示他的學號，讓他知道系統有認得他
+# 在側邊欄或標題顯示學號
 st.sidebar.success(f"Student ID: {st.session_state.student_id}")
 if st.sidebar.button("Log out (登出)"):
     del st.session_state.student_id
     st.rerun()
 
-# 2. 初始化 Gemini 模型
+# 初始化 Gemini 模型
 ta_instructions ="""
 You are an AI teaching assistant dedicated to university-level General Physics.
 You are currently in 【Guided Mode】.
@@ -58,20 +55,19 @@ model = genai.GenerativeModel(
     system_instruction=ta_instructions
 )
 
-# 設定網頁標題
 st.title("AI Teaching Assistant for NTU General Physics")
 st.caption("Hello! I'm your AI teaching assistant for general physics. Feel free to ask me any physics-related questions!")
 
 # 圖片上傳區塊
-uploaded_file = st.file_uploader("Upload an image (optional)", type=["jpg", "jpeg", "png"])
+# uploaded_file = st.file_uploader("Upload an image (optional)", type=["jpg", "jpeg", "png"])
 
-image_to_send = None
-if uploaded_file is not None:
-    # 1. 把檔案讀取指標倒轉回起點
-    uploaded_file.seek(0)
-    # 2. 強制轉換為 RGB，避免 PNG 透明背景導致 AI 讀取失敗
-    image_to_send = Image.open(uploaded_file).convert('RGB')
-    st.image(image_to_send, caption="Uploaded Image", use_container_width=True)
+# image_to_send = None
+# if uploaded_file is not None:
+#     # 把檔案讀取指標倒轉回起點
+#     uploaded_file.seek(0)
+#     # 強制轉換為 RGB，避免 PNG 透明背景導致 AI 讀取失敗
+#     image_to_send = Image.open(uploaded_file).convert('RGB')
+#     st.image(image_to_send, caption="Uploaded Image", use_container_width=True)
 
 # with st.sidebar:
 #     # st.title("⚙️ Course Settings")
@@ -112,10 +108,26 @@ for message in st.session_state.guided_messages:
 #         st.markdown(message["content"])
 
 # 4. 接收使用者輸入
-if prompt := st.chat_input("What physics problem would you like to discuss?"):
+if prompt := st.chat_input("What physics problem would you like to discuss?", accept_file=True, file_type=["png", "jpg", "jpeg"]):
 
-    st.chat_message("user").markdown(prompt)
-    st.session_state.guided_messages.append({"role": "user", "content": prompt, "image": image_to_send})
+    user_text = prompt.text
+    uploaded_file = prompt.files[0] if prompt.files else None
+
+    image_to_send = None
+    if uploaded_file is not None:
+        uploaded_file.seek(0)
+        image_to_send = Image.open(uploaded_file).convert('RGB')
+
+    with st.chat_message("user"):
+        if user_text:
+            st.markdown(user_text)
+        if image_to_send:
+            st.image(image_to_send, width=300)
+
+    safe_text = user_text if user_text else "Only image uploaded."
+
+    # st.chat_message("user").markdown(prompt)
+    st.session_state.guided_messages.append({"role": "user", "content": safe_text, "image": image_to_send})
 
     # ================= 資料庫紀錄區塊 =================
     tw_timezone = timezone(timedelta(hours=8))
@@ -131,7 +143,7 @@ if prompt := st.chat_input("What physics problem would you like to discuss?"):
         # 建立與 Google Sheets 的連線
         conn = st.connection("gsheets", type=GSheetsConnection)
         
-        SHEET_URL = "https://docs.google.com/spreadsheets/d/1BP0F_gTlwAJkcYFRqDDAnX3O4utJdnKg3pCthVBlHiI/edit?usp=sharing"
+        SHEET_URL = st.secrets["SHEET_URL"] 
         
         # 讀取目前試算表裡的舊資料
         existing_data = conn.read(spreadsheet=SHEET_URL, usecols=[0, 1, 2, 3], ttl=0)
@@ -145,10 +157,10 @@ if prompt := st.chat_input("What physics problem would you like to discuss?"):
         
         # 把合併後的資料寫回 Google Sheets
         conn.update(spreadsheet=SHEET_URL, data=updated_data)
-        print("成功寫入資料庫！")
+        print("Successfully logged data to Google Sheets.")
         
     except Exception as e:
-        st.error(f"資料紀錄失敗。錯誤訊息：{e}")
+        st.error(f"Failed to log data to Google Sheets: {e}")
     # =====================================================
     # =====================================================
 
@@ -157,7 +169,7 @@ if prompt := st.chat_input("What physics problem would you like to discuss?"):
         role = "user" if msg["role"] == "user" else "model"
         # gemini_history.append({"role": role, "parts": [msg["content"]]})
         parts = [msg["content"]]
-        # 如果這則舊訊息有包含圖片，也要一起塞進 parts 裡面讓模型回顧
+
         if "image" in msg and msg["image"] is not None:
             parts.insert(0, msg["image"])
         gemini_history.append({"role": role, "parts": parts})
@@ -172,8 +184,20 @@ if prompt := st.chat_input("What physics problem would you like to discuss?"):
                 response = chat.send_message([image_to_send, prompt], stream=True)
             else:
                 response = chat.send_message(prompt, stream=True)
+
+    with st.chat_message("assistant"):
+        with st.spinner("Thinking..."):
+            
+            content_to_send = []
+            if image_to_send:
+                content_to_send.append(image_to_send)
+            if user_text:
+                content_to_send.append(user_text)
+            else:
+                content_to_send.append("Please analyze the uploaded image and provide guidance.") 
+            response = chat.send_message(content_to_send, stream=True)
         
-        # 當接到第一個字的時候，spinner 會自動消失，接著開始像打字機一樣輸出
+        # 像打字機一樣輸出
         def stream_generator():
             for chunk in response:
                 if chunk.text:
