@@ -34,6 +34,12 @@ if "student_id" not in st.session_state:
     st.stop()
 # ======================================================
 
+# 在側邊欄或標題顯示學號
+st.sidebar.success(f"Student ID: {st.session_state.student_id}")
+if st.sidebar.button("Log out (登出)"):
+    del st.session_state.student_id
+    st.rerun()
+
 # ================= 前測問卷攔截閘門 =================
 if "pre_test_done" not in st.session_state:
     try:
@@ -93,12 +99,6 @@ if not st.session_state.pre_test_done:
 
     st.stop()
 # =====================================================
-
-# 在側邊欄或標題顯示學號
-st.sidebar.success(f"Student ID: {st.session_state.student_id}")
-if st.sidebar.button("Log out (登出)"):
-    del st.session_state.student_id
-    st.rerun()
 
 # 初始化 Gemini 模型
 ta_instructions ="""
