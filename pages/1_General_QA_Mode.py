@@ -148,7 +148,7 @@ Respond humorously and briefly, but then steer the conversation back to physics.
 """
 
 model = genai.GenerativeModel(
-    'gemini-3-flash-preview',
+    'gemini-3.1-pro-preview',
     system_instruction=general_qa_instruction
 )
 
