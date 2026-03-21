@@ -47,4 +47,4 @@ If you wish to run this locally:
 
 1. **Clone the repository:**
    ```bash
-   git clone [[https://github.com/](https://github.com/)](https://github.com/weihsuanchung/AI_TA_for_General_Physics.git)weihsuanchung/AI_TA_for_General_Physics.git
+   git clone [https://github.com/](https://github.com/) weihsuanchung/AI_TA_for_General_Physics.git
