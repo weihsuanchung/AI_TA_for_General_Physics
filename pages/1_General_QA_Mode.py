@@ -14,7 +14,7 @@ def anonymize_student_id(raw_id):
     # 去除頭尾空白，並全部轉成小寫
     clean_id = str(raw_id).strip().lower()
     
-    salt = "luminer_secret_ntu_physics" 
+    salt = st.secrets["ID_SALT"]  # 從 Secrets 讀取 salt 值
     salted_id = clean_id + salt
     
     # 使用 SHA-256 演算法進行hashing
