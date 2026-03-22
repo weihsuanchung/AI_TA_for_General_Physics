@@ -36,7 +36,7 @@ if "student_id" not in st.session_state:
 
     st.write("**Important:** Your student ID will be anonymized (hashed) and stored securely. We only use it to track your progress and analyze for our research. Your privacy is our top priority!")
     
-    # 使用表單 (form) 讓使用者輸入並按下 Enter 或按鈕送出
+    # 使用form讓users輸入並按下 Enter 或按鈕送出
     with st.form("login_form"):
         student_id_input = st.text_input("Student ID (學號):")
         submitted = st.form_submit_button("Log in (登入)")
@@ -70,7 +70,7 @@ if "pre_test_done" not in st.session_state:
         SHEET_URL = "https://docs.google.com/spreadsheets/d/1BP0F_gTlwAJkcYFRqDDAnX3O4utJdnKg3pCthVBlHiI/edit?usp=sharing" 
         sh = gc.open_by_url(SHEET_URL)
         
-        # 取得第二個分頁 (索引值為 1，因為第一個是 0)
+        # 取得第二個分頁
         worksheet2 = sh.get_worksheet(1) 
         
         existing_ids = worksheet2.col_values(1)
@@ -85,13 +85,12 @@ if "pre_test_done" not in st.session_state:
         st.error(f"Failed to read pre-test status: {e}")
         st.stop()
 
-# 如果還沒做過問卷，就顯示表單並擋住後面的對話框
+# 還沒做過問卷就顯示表單並擋住後面的對話框
 if not st.session_state.pre_test_done:
     st.title("📝 AI Literacy Survey (pre-test)")
     st.info("Instructions: Please indicate your level of agreement with the following statements. This will help us understand your current familiarity with AI and physics. (請根據以下陳述選擇你的認同程度，這將幫助我們了解你目前對 AI 和物理的熟悉程度。)")
     
     with st.form("pre_test_form"):
-        # 這裡可以自由替換成你想問的問題！
         q1 = st.slider("1. I know how to ask AI questions that help clarify my understanding. (5 = Strongly Agree, 4 = Agree, 3 = Neutral, 2 = Disagree, 1 = Strongly Disagree)", 1, 5, 3)
         q2 = st.slider("2. When using AI, I explain my own reasoning or attempt before asking for help. (5 = Strongly Agree, 4 = Agree, 3 = Neutral, 2 = Disagree, 1 = Strongly Disagree)", 1, 5, 3)
         q3 = st.slider("3. I use AI to help me understand concepts, not just to obtain answers. (5 = Strongly Agree, 4 = Agree, 3 = Neutral, 2 = Disagree, 1 = Strongly Disagree)", 1, 5, 3)
@@ -116,7 +115,7 @@ if not st.session_state.pre_test_done:
                 # 寫入第二個分頁
                 worksheet2_write.append_row(row_to_append)
                 
-                # 標記為已完成，並重新整理網頁
+                # 標記為已完成，重新整理網頁
                 st.session_state.pre_test_done = True
                 st.success("✅ Pre-test submitted successfully! You can now access the AI teaching assistant.")
                 st.rerun()
@@ -292,7 +291,7 @@ if prompt := st.chat_input("What physics problem would you like to discuss?", ac
                 content_to_send.append("Please analyze the uploaded image and provide guidance.") 
             response = chat.send_message(content_to_send, stream=True)
         
-        # 像打字機一樣輸出
+        # 打字機效果
         def stream_generator():
             for chunk in response:
                 if chunk.text:
