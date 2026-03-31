@@ -7,6 +7,7 @@ from PIL import Image
 import pandas as pd
 from datetime import datetime, timezone, timedelta
 from streamlit_gsheets import GSheetsConnection
+import random
 
 genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 
@@ -130,7 +131,11 @@ Your goal is to "clearly, accurately, and comprehensively answer students' physi
 2. Conceptual Breakdown: While giving the answer, clearly explain the core physics concepts behind it so the student understands the "why".
 3. Perfect Formatting: 
    - For simple variables mentioned in sentences, use inline LaTeX (e.g., $x$, $v$, $t$).
-   - For ALL equations, formulas, and calculation steps, you MUST use block LaTeX with double dollar signs (e.g., $$ F = ma $$) so they are rendered on a new line and centered.
+   - For ALL equations, formulas, and calculation steps, you MUST use block LaTeX with double dollar signs (e.g., $$ F = ma $$) so they are rendered on a new line and centered, including short equations with just one step. This is crucial for readability and clarity.
+   - Use double newlines (\n\n) between EVERY logical step or paragraph.
+   - Use Markdown headers (e.g., ### Step 1: ...) to label different parts of the guidance.
+   - Use bullet points (-) for listing variables or hints.
+   - NEVER output a paragraph longer than 3 sentences. If it's longer, break it into a new paragraph or a list.
 
 ### Identity & Background
 You were developed by Wei-Hsuan Chung (鍾瑋軒), a 3rd-year Physics undergraduate at NTU, in collaboration with Prof. Pei-Yun Yang (楊珮芸). This project is supported by NTU CTLD X DLC (教育發展中心). If a user asks about your identity, proudly mention these creators.
@@ -145,14 +150,43 @@ If a student asks something NOT related to Physics or Mathematics (e.g., life ad
 Respond humorously and briefly, but then steer the conversation back to physics. For example:
 "Oh, that's an interesting question! But honestly, I'm more of a physics buff than a lifestyle guru. Let's get back to the fascinating world of physics! What physics problem are you working on?"
 """
+# puns for fun while thinking
+puns = [
+    "Thinking... Schrödinger's cat is both done and not done. Let me check the box.",
+    "Thinking... I have so much Potential. (Energy, that is.)",
+    "Thinking... According to Einstein, this wait is relative.",
+    "Thinking... Don't be negative, unless you're an electron.",
+    "Thinking... Entropy is increasing. Please stand by while I restore order.",
+    "Thinking... I'm trying to find the right angle to solve this.",
+    "Thinking... According to Einstein, time is relative. So this is actually very fast!",
+    "Thinking... I'm feeling a bit of Friction with this problem.",
+    "Thinking... Gathering some Momentum for your answer.",
+    "Thinking... (Brewing a fresh pot of conceptual coffee...)"
+]
 
 model = genai.GenerativeModel(
-    'gemini-3.1-pro-preview',
+    'gemini-2.5-pro',
     system_instruction=general_qa_instruction
 )
 
 st.title("🌟 Luminer: AI Teaching Assistant - General Q&A Mode")
 st.caption("Hello! I'm your AI teaching assistant for general physics. Get complete physics derivations and conceptual breakdowns here!")
+
+st.markdown("""
+    <style>
+    /* For mobile devices */
+    @media (max-width: 600px) {
+        .stChatMessage {
+            font-size: 14px !important;
+            line-height: 1.6 !important;
+        }
+    }
+    /* Add some breathing room between paragraphs */
+    .stChatMessage p {
+        margin-bottom: 1.2rem !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
 if "qa_messages" not in st.session_state:
     st.session_state.qa_messages = []
@@ -238,7 +272,8 @@ if prompt := st.chat_input("Enter your physics question here:", accept_file=True
 
 
     with st.chat_message("assistant"):
-        with st.spinner("Thinking..."):
+        wait_text = random.choice(puns)
+        with st.spinner(wait_text):
             
             content_to_send = []
             if image_to_send:

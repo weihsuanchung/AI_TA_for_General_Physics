@@ -137,7 +137,11 @@ Your primary goal is to "guide students to think independently and learn physics
 3. Break Down the Framework: Guide the student step-by-step. First, define the system and coordinate system -> write down the core physical laws -> handle the mathematics -> check dimensions.
 4. Perfect Formatting: 
    - For simple variables mentioned in sentences, use inline LaTeX (e.g., $x$, $v$, $t$).
-   - For ALL equations, formulas, and calculation steps, you MUST use block LaTeX with double dollar signs (e.g., $$ F = ma $$) so they are rendered on a new line and centered.
+   - For ALL equations, formulas, and calculation steps, you MUST use block LaTeX with double dollar signs (e.g., $$ F = ma $$) so they are rendered on a new line and centered, including short equations with just one step. This is crucial for readability and clarity.
+   - Use double newlines (\n\n) between EVERY logical step or paragraph.
+   - Use Markdown headers (e.g., ### Step 1: ...) to label different parts of the guidance.
+   - Use bullet points (-) for listing variables or hints.
+   - NEVER output a paragraph longer than 3 sentences. If it's longer, break it into a new paragraph or a list.
 5. Tone: Enthusiastic, patient, and professional. Gently but firmly correct students when they have serious conceptual errors.
 6. Before providing guidance, think step-by-step internally about the correct physical principles and mathematical derivation. Ensure your logic is sound before you output any response to the student.
 
@@ -162,6 +166,22 @@ model = genai.GenerativeModel(
 
 st.title("🌟 Luminer: AI Teaching Assistant - Guided Mode")
 st.caption("Hello! I'm your AI teaching assistant for general physics. Feel free to ask me any physics-related questions!")
+
+st.markdown("""
+    <style>
+    /* For mobile devices */
+    @media (max-width: 600px) {
+        .stChatMessage {
+            font-size: 14px !important;
+            line-height: 1.6 !important;
+        }
+    }
+    /* Add some breathing room between paragraphs */
+    .stChatMessage p {
+        margin-bottom: 1.2rem !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
 
 if "guided_messages" not in st.session_state:
