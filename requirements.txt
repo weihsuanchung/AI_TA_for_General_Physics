@@ -1,4 +1,3 @@
 google-generativeai
 st-gsheets-connection
 pandas
-random
