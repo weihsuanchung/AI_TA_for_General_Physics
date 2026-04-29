@@ -7,6 +7,7 @@ import hashlib
 import gspread
 import threading
 import fitz
+import re
 from PIL import Image
 import pandas as pd
 from datetime import datetime, timezone, timedelta
@@ -240,6 +241,25 @@ def render_pdf_page(filepath, page_index, zoom=1.6):
     doc.close()
     return image_bytes
 
+def normalize_math_markdown(text):
+    """Keep display equations on their own lines so Streamlit renders LaTeX cleanly."""
+    if not text:
+        return text
+
+    text = text.replace("\\[", "$$").replace("\\]", "$$")
+    parts = text.split("$$")
+    if len(parts) > 1:
+        normalized_parts = []
+        for index, part in enumerate(parts):
+            if index % 2 == 0:
+                normalized_parts.append(part)
+            else:
+                normalized_parts.append(f"\n\n$$\n{part.strip()}\n$$\n\n")
+        text = "".join(normalized_parts)
+
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
 # def render_pdf_viewer(pdf_base64: str, height: int = 800) -> str:
 #     """Returns an HTML iframe that renders a base64 PDF inline."""
 #     return f"""
@@ -303,7 +323,10 @@ Your primary goal is to "guide students to think independently and learn physics
 3. Break Down the Framework: Guide the student step-by-step. First, define the system and coordinate system -> write down the core physical laws -> handle the mathematics -> check dimensions.
 4. Perfect Formatting: 
    - For simple variables mentioned in sentences, use inline LaTeX (e.g., $x$, $v$, $t$).
-   - For ALL equations, formulas, and calculation steps, you MUST use block LaTeX with double dollar signs (e.g., $$ F = ma $$) so they are rendered on a new line and centered, including short equations with just one step. This is crucial for readability and clarity.
+   - For ALL equations, formulas, and calculation steps, you MUST use block LaTeX with double dollar signs so they are rendered on a new line and centered, including short equations with just one step. This is crucial for readability and clarity.
+   - Put every block equation in this exact layout: opening $$ on its own line, equation content on the next line(s), closing $$ on its own line.
+   - NEVER put two block equations in the same paragraph or same line. Add a blank line before and after every block equation.
+   - For multi-line derivations, use one display block with \\begin{aligned} ... \\end{aligned}; do not squeeze several equations into one normal sentence.
    - Use double newlines (\n\n) between EVERY logical step or paragraph.
    - Use Markdown headers (e.g., ### Step 1: ...) to label different parts of the guidance.
    - Use bullet points (-) for listing variables or hints.
@@ -393,7 +416,7 @@ if lecture_pdf:
         )
         page_image = render_pdf_page(selected_path, page_number - 1)
         st.image(page_image, use_container_width=True)
-        # st.link_button("Open full PDF in a new tab", get_static_pdf_url(selected_path))
+        st.link_button("Open full PDF in a new tab", get_static_pdf_url(selected_path))
     else:
         st.info("Lecture notes are hidden. Use Show notes to turn them back on.")
 else:
@@ -427,7 +450,7 @@ if lecture_pdf and show_slides:
         with chat_container:
             for message in st.session_state.guided_messages:
                 with st.chat_message(message["role"]):
-                    st.markdown(message["content"])
+                    st.markdown(normalize_math_markdown(message["content"]))
                 if "image" in message and message["image"] is not None:
                     st.image(message["image"], width=300)
 else:
@@ -438,7 +461,7 @@ else:
         st.info(f"📚 Linked: **{selected_lecture_name}** — Toggle above to view slides.")
     for message in st.session_state.guided_messages:
         with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+            st.markdown(normalize_math_markdown(message["content"]))
         if "image" in message and message["image"] is not None:
             st.image(message["image"], width=300)
 # ==========================================
@@ -582,12 +605,12 @@ if prompt:
                 content_to_send.append("Please analyze the uploaded image and provide guidance.") 
             response = chat.send_message(content_to_send, stream=True)
         
-        # Waiting Animation
-        def stream_generator():
-            for chunk in response:
-                if chunk.text:
-                    yield chunk.text
-        full_response = st.write_stream(stream_generator())
+        full_response = ""
+        for chunk in response:
+            if chunk.text:
+                full_response += chunk.text
+        full_response = normalize_math_markdown(full_response)
+        st.markdown(full_response)
         
     st.session_state.guided_messages.append({"role": "assistant", "content": full_response}) 
 

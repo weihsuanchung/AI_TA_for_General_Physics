@@ -194,7 +194,9 @@ def get_model():
         system_instruction=(
             "You are Luminer, an AI teaching assistant for university-level General Physics. "
             "In Physics Review Zone, help students prepare for exams with clear diagnostics, "
-            "concept review, and encouraging follow-up explanations."
+            "concept review, and encouraging follow-up explanations. "
+            "For any display equation, put opening $$ on its own line, equation content on the next line, "
+            "and closing $$ on its own line. Add a blank line before and after every display equation."
         ),
     )
 
@@ -211,6 +213,26 @@ def parse_json_response(text):
         if match:
             return json.loads(match.group(0))
         raise
+
+
+def normalize_math_markdown(text):
+    """Keep display equations on their own lines so Streamlit renders LaTeX cleanly."""
+    if not text:
+        return text
+
+    text = text.replace("\\[", "$$").replace("\\]", "$$")
+    parts = text.split("$$")
+    if len(parts) > 1:
+        normalized_parts = []
+        for index, part in enumerate(parts):
+            if index % 2 == 0:
+                normalized_parts.append(part)
+            else:
+                normalized_parts.append(f"\n\n$$\n{part.strip()}\n$$\n\n")
+        text = "".join(normalized_parts)
+
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
 
 
 def normalize_quiz(raw_quiz):
@@ -432,7 +454,7 @@ if not st.session_state.get("review_submitted", False):
 
 
 st.markdown("#### Luminer's Feedback")
-st.markdown(st.session_state.review_feedback)
+st.markdown(normalize_math_markdown(st.session_state.review_feedback))
 
 with st.expander("Review your answers"):
     for index, question in enumerate(questions, start=1):
@@ -448,7 +470,7 @@ st.markdown("#### Ask Luminer about this review")
 
 for message in st.session_state.review_chat_messages:
     with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+        st.markdown(normalize_math_markdown(message["content"]))
 
 chat_prompt = st.chat_input("Ask about any question, concept, or mistake from this review...")
 
@@ -482,12 +504,12 @@ if chat_prompt:
                 stream=True,
             )
 
-        def stream_generator():
-            for chunk in response:
-                if chunk.text:
-                    yield chunk.text
-
-        full_response = st.write_stream(stream_generator())
+        full_response = ""
+        for chunk in response:
+            if chunk.text:
+                full_response += chunk.text
+        full_response = normalize_math_markdown(full_response)
+        st.markdown(full_response)
 
     st.session_state.review_chat_messages.append({"role": "assistant", "content": full_response})
 

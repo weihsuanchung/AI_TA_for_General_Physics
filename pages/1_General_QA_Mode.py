@@ -7,6 +7,7 @@ import hashlib
 import gspread
 import threading
 import fitz
+import re
 from PIL import Image
 import pandas as pd
 from datetime import datetime, timezone, timedelta
@@ -19,13 +20,13 @@ st.set_page_config(layout="wide")
 genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 
 def anonymize_student_id(raw_id):
-    # Remove leading/trailing whitespace and convert to lowercase
+    # 去除頭尾空白，並全部轉成小寫
     clean_id = str(raw_id).strip().lower()
     
-    salt = st.secrets["ID_SALT"]  # From Secrets
+    salt = st.secrets["ID_SALT"]  # 從 Secrets 讀取 salt 值
     salted_id = clean_id + salt
     
-    # Create SHA-256 hash of the salted ID
+    # 使用 SHA-256 演算法進行hashing
     hash_object = hashlib.sha256(salted_id.encode('utf-8'))
     
     hex_digest = hash_object.hexdigest()
@@ -33,14 +34,14 @@ def anonymize_student_id(raw_id):
     
     return anonymous_number
 
-# ================= Student ID Login Gate =================
+# ================= 學號登入閘門 =================
 if "student_id" not in st.session_state:
     st.title("🎓 Hi! I'm your AI teaching assistant, Luminer!")
     st.info("Please enter your student ID to get started. (請輸入學號以開始使用)")
 
     st.write("**Important**: Your student ID will be anonymized (hashed) and stored securely. We only use it to track your progress and analyze for our research. Your privacy is our top priority!")
     
-    # Use a form to input student ID and prevent submission without it
+    # 使用form讓users輸入並按下 Enter 或按鈕送出
     with st.form("login_form"):
         student_id_input = st.text_input("Student ID (學號):")
         submitted = st.form_submit_button("Log in (登入)")
@@ -50,35 +51,35 @@ if "student_id" not in st.session_state:
                 st.error("Student ID cannot be empty! (學號不能為空！)")
             else:
                 anonymous_id = anonymize_student_id(student_id_input)
-                # Store the original student ID in session state for display
+                # 把學號存進 session_state，並重新整理網頁
                 st.session_state.student_id = student_id_input.strip()
                 st.session_state.anonymous_id = anonymous_id
                 st.rerun()
                 
     st.stop()
 # ======================================================
-# Show the logged-in student ID in the sidebar
+# 在側邊欄或標題顯示學號
 st.sidebar.success(f"Student ID: {st.session_state.student_id}")
 if st.sidebar.button("Log out (登出)"):
     del st.session_state.student_id
     del st.session_state.anonymous_id
     st.rerun()
 
-# ================= Pre-Test Survey =================
+# ================= 前測問卷攔截閘門 =================
 if "pre_test_done" not in st.session_state:
     try:
-        # Initialize gspread clientusing credentials from Streamlit secrets
+        # 連線到 Google Sheets
         credentials_dict = dict(st.secrets["connections"]["gsheets"])
         gc = gspread.service_account_from_dict(credentials_dict)
         SHEET_URL = "https://docs.google.com/spreadsheets/d/1BP0F_gTlwAJkcYFRqDDAnX3O4utJdnKg3pCthVBlHiI/edit?usp=sharing" 
         sh = gc.open_by_url(SHEET_URL)
         
-        # store the data in the second worksheet (index 1)
+        # 取得第二個分頁
         worksheet2 = sh.get_worksheet(1) 
         
         existing_ids = worksheet2.col_values(1)
         
-        # check if the current anonymous ID already exists in the pre-test responses
+        # 檢查現在登入的學號是不是已經在問卷紀錄裡了
         if st.session_state.anonymous_id in existing_ids:
             st.session_state.pre_test_done = True
         else:
@@ -88,7 +89,7 @@ if "pre_test_done" not in st.session_state:
         st.error(f"Failed to read pre-test status: {e}")
         st.stop()
 
-# if pre-test not done, show the survey form
+# 如果還沒做過問卷，就顯示表單並擋住後面的對話框
 if not st.session_state.pre_test_done:
     st.title("📝 AI Literacy Survey (pre-test)")
     st.info("Instructions: Please indicate your level of agreement with the following statements. This will help us understand your current familiarity with AI and physics. (請根據以下陳述選擇你的認同程度，這將幫助我們了解你目前對 AI 和物理的熟悉程度。)")
@@ -115,10 +116,10 @@ if not st.session_state.pre_test_done:
                 SHEET_URL = "https://docs.google.com/spreadsheets/d/1BP0F_gTlwAJkcYFRqDDAnX3O4utJdnKg3pCthVBlHiI/edit?usp=sharing"
                 sh = gc.open_by_url(SHEET_URL)
                 worksheet2_write = sh.get_worksheet(1)
-                # write the pre-test responses to the second worksheet (index 1)
+                # 寫入第二個分頁
                 worksheet2_write.append_row(row_to_append)
                 
-                # mark pre-test as done in session state
+                # 標記為已完成，重新整理網頁
                 st.session_state.pre_test_done = True
                 st.success("✅ Pre-test submitted successfully! You can now access the AI teaching assistant.")
                 st.rerun()
@@ -239,6 +240,25 @@ def render_pdf_page(filepath, page_index, zoom=1.6):
     doc.close()
     return image_bytes
 
+def normalize_math_markdown(text):
+    """Keep display equations on their own lines so Streamlit renders LaTeX cleanly."""
+    if not text:
+        return text
+
+    text = text.replace("\\[", "$$").replace("\\]", "$$")
+    parts = text.split("$$")
+    if len(parts) > 1:
+        normalized_parts = []
+        for index, part in enumerate(parts):
+            if index % 2 == 0:
+                normalized_parts.append(part)
+            else:
+                normalized_parts.append(f"\n\n$$\n{part.strip()}\n$$\n\n")
+        text = "".join(normalized_parts)
+
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
 st.sidebar.divider()
 st.sidebar.markdown("**Link to Lecture**")
 
@@ -269,7 +289,10 @@ Your goal is to "clearly, accurately, and comprehensively answer students' physi
 2. Conceptual Breakdown: While giving the answer, clearly explain the core physics concepts behind it so the student understands the "why".
 3. Perfect Formatting: 
    - For simple variables mentioned in sentences, use inline LaTeX (e.g., $x$, $v$, $t$).
-   - For ALL equations, formulas, and calculation steps, you MUST use block LaTeX with double dollar signs (e.g., $$ F = ma $$) so they are rendered on a new line and centered, including short equations with just one step. This is crucial for readability and clarity.
+   - For ALL equations, formulas, and calculation steps, you MUST use block LaTeX with double dollar signs so they are rendered on a new line and centered, including short equations with just one step. This is crucial for readability and clarity.
+   - Put every block equation in this exact layout: opening $$ on its own line, equation content on the next line(s), closing $$ on its own line.
+   - NEVER put two block equations in the same paragraph or same line. Add a blank line before and after every block equation.
+   - For multi-line derivations, use one display block with \\begin{aligned} ... \\end{aligned}; do not squeeze several equations into one normal sentence.
    - Use double newlines (\n\n) between EVERY logical step or paragraph.
    - Use Markdown headers (e.g., ### Step 1: ...) to label different parts of the guidance.
    - Use bullet points (-) for listing variables or hints.
@@ -357,7 +380,7 @@ if lecture_pdf:
         )
         page_image = render_pdf_page(selected_path, page_number - 1)
         st.image(page_image, use_container_width=True)
-        # st.link_button("Open full PDF in a new tab", get_static_pdf_url(selected_path))
+        st.link_button("Open full PDF in a new tab", get_static_pdf_url(selected_path))
     else:
         st.info("Lecture notes are hidden. Use Show notes to turn them back on.")
 else:
@@ -368,7 +391,7 @@ st.markdown("#### Chat with Luminer")
 
 for message in st.session_state.qa_messages:
     with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+        st.markdown(normalize_math_markdown(message["content"]))
     if "image" in message and message["image"] is not None:
             st.image(message["image"], width=300)
 
@@ -443,12 +466,13 @@ if prompt:
                 content_to_send.append("Please analyze the uploaded image and provide the step-by-step solution.") 
             response = chat.send_message(content_to_send, stream=True)
         
-        # Accumulate the streamed response chunks and display them in real-time
-        def stream_generator():
-            for chunk in response:
-                if chunk.text:
-                    yield chunk.text
-        full_response = st.write_stream(stream_generator())
+        # 打字機效果
+        full_response = ""
+        for chunk in response:
+            if chunk.text:
+                full_response += chunk.text
+        full_response = normalize_math_markdown(full_response)
+        st.markdown(full_response)
         
     st.session_state.qa_messages.append({"role": "assistant", "content": full_response}) 
 
