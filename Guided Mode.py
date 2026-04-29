@@ -393,7 +393,7 @@ if lecture_pdf:
         )
         page_image = render_pdf_page(selected_path, page_number - 1)
         st.image(page_image, use_container_width=True)
-        st.link_button("Open full PDF in a new tab", get_static_pdf_url(selected_path))
+        # st.link_button("Open full PDF in a new tab", get_static_pdf_url(selected_path))
     else:
         st.info("Lecture notes are hidden. Use Show notes to turn them back on.")
 else:
