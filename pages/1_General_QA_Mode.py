@@ -1,24 +1,31 @@
 import streamlit as st
+import os
+import base64
 import google.generativeai as genai
 import time
 import hashlib
 import gspread
+import threading
+import fitz
 from PIL import Image
 import pandas as pd
 from datetime import datetime, timezone, timedelta
 from streamlit_gsheets import GSheetsConnection
 import random
+from urllib.parse import quote
+
+st.set_page_config(layout="wide")
 
 genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 
 def anonymize_student_id(raw_id):
-    # 去除頭尾空白，並全部轉成小寫
+    # Remove leading/trailing whitespace and convert to lowercase
     clean_id = str(raw_id).strip().lower()
     
-    salt = st.secrets["ID_SALT"]  # 從 Secrets 讀取 salt 值
+    salt = st.secrets["ID_SALT"]  # From Secrets
     salted_id = clean_id + salt
     
-    # 使用 SHA-256 演算法進行hashing
+    # Create SHA-256 hash of the salted ID
     hash_object = hashlib.sha256(salted_id.encode('utf-8'))
     
     hex_digest = hash_object.hexdigest()
@@ -26,14 +33,14 @@ def anonymize_student_id(raw_id):
     
     return anonymous_number
 
-# ================= 學號登入閘門 =================
+# ================= Student ID Login Gate =================
 if "student_id" not in st.session_state:
     st.title("🎓 Hi! I'm your AI teaching assistant, Luminer!")
     st.info("Please enter your student ID to get started. (請輸入學號以開始使用)")
 
     st.write("**Important**: Your student ID will be anonymized (hashed) and stored securely. We only use it to track your progress and analyze for our research. Your privacy is our top priority!")
     
-    # 使用form讓users輸入並按下 Enter 或按鈕送出
+    # Use a form to input student ID and prevent submission without it
     with st.form("login_form"):
         student_id_input = st.text_input("Student ID (學號):")
         submitted = st.form_submit_button("Log in (登入)")
@@ -43,35 +50,35 @@ if "student_id" not in st.session_state:
                 st.error("Student ID cannot be empty! (學號不能為空！)")
             else:
                 anonymous_id = anonymize_student_id(student_id_input)
-                # 把學號存進 session_state，並重新整理網頁
+                # Store the original student ID in session state for display
                 st.session_state.student_id = student_id_input.strip()
                 st.session_state.anonymous_id = anonymous_id
                 st.rerun()
                 
     st.stop()
 # ======================================================
-# 在側邊欄或標題顯示學號
+# Show the logged-in student ID in the sidebar
 st.sidebar.success(f"Student ID: {st.session_state.student_id}")
 if st.sidebar.button("Log out (登出)"):
     del st.session_state.student_id
     del st.session_state.anonymous_id
     st.rerun()
 
-# ================= 前測問卷攔截閘門 =================
+# ================= Pre-Test Survey =================
 if "pre_test_done" not in st.session_state:
     try:
-        # 連線到 Google Sheets
+        # Initialize gspread clientusing credentials from Streamlit secrets
         credentials_dict = dict(st.secrets["connections"]["gsheets"])
         gc = gspread.service_account_from_dict(credentials_dict)
         SHEET_URL = "https://docs.google.com/spreadsheets/d/1BP0F_gTlwAJkcYFRqDDAnX3O4utJdnKg3pCthVBlHiI/edit?usp=sharing" 
         sh = gc.open_by_url(SHEET_URL)
         
-        # 取得第二個分頁
+        # store the data in the second worksheet (index 1)
         worksheet2 = sh.get_worksheet(1) 
         
         existing_ids = worksheet2.col_values(1)
         
-        # 檢查現在登入的學號是不是已經在問卷紀錄裡了
+        # check if the current anonymous ID already exists in the pre-test responses
         if st.session_state.anonymous_id in existing_ids:
             st.session_state.pre_test_done = True
         else:
@@ -81,7 +88,7 @@ if "pre_test_done" not in st.session_state:
         st.error(f"Failed to read pre-test status: {e}")
         st.stop()
 
-# 如果還沒做過問卷，就顯示表單並擋住後面的對話框
+# if pre-test not done, show the survey form
 if not st.session_state.pre_test_done:
     st.title("📝 AI Literacy Survey (pre-test)")
     st.info("Instructions: Please indicate your level of agreement with the following statements. This will help us understand your current familiarity with AI and physics. (請根據以下陳述選擇你的認同程度，這將幫助我們了解你目前對 AI 和物理的熟悉程度。)")
@@ -108,10 +115,10 @@ if not st.session_state.pre_test_done:
                 SHEET_URL = "https://docs.google.com/spreadsheets/d/1BP0F_gTlwAJkcYFRqDDAnX3O4utJdnKg3pCthVBlHiI/edit?usp=sharing"
                 sh = gc.open_by_url(SHEET_URL)
                 worksheet2_write = sh.get_worksheet(1)
-                # 寫入第二個分頁
+                # write the pre-test responses to the second worksheet (index 1)
                 worksheet2_write.append_row(row_to_append)
                 
-                # 標記為已完成，重新整理網頁
+                # mark pre-test as done in session state
                 st.session_state.pre_test_done = True
                 st.success("✅ Pre-test submitted successfully! You can now access the AI teaching assistant.")
                 st.rerun()
@@ -120,6 +127,137 @@ if not st.session_state.pre_test_done:
 
     st.stop()
 # =====================================================
+
+# ================= Background Logging Function =================
+def log_to_sheets(anonymous_id, current_time, safe_text):
+    try:
+        credentials_dict = dict(st.secrets["connections"]["gsheets"])
+        gc = gspread.service_account_from_dict(credentials_dict)
+        sh = gc.open_by_url("https://docs.google.com/spreadsheets/d/1BP0F_gTlwAJkcYFRqDDAnX3O4utJdnKg3pCthVBlHiI/edit?usp=sharing")
+        worksheet = sh.sheet1
+        worksheet.append_row([anonymous_id, current_time, "General Q&A Mode", safe_text])
+    except Exception as e:
+        print(f"Logging failed silently: {e}")
+# ===============================================================
+
+# ================= Lecture Slides Loader =================
+@st.cache_data
+def load_lecture_pdf(filepath):
+    """Load and cache PDF as base64 for Gemini context."""
+    with open(filepath, "rb") as f:
+        pdf_bytes = f.read()
+    return {
+        "mime_type": "application/pdf",
+        "data": base64.standard_b64encode(pdf_bytes).decode("utf-8")
+    }
+
+LECTURE_ORDER = [
+    "Electrostatic Field",
+    "Gauss",
+    "Electric Potential",
+    "Capacitance",
+    "DC Circuit",
+    "Magnetostatics",
+    "Electromagnetic Induction",
+    "Inductance",
+]
+
+def clean_lecture_name(filename):
+    return os.path.splitext(filename)[0].strip()
+
+def build_lecture_slides():
+    lectures = {"None (No lecture linked)": None}
+    static_dir = "static"
+    if not os.path.isdir(static_dir):
+        return lectures
+
+    pdf_names = [
+        clean_lecture_name(filename)
+        for filename in os.listdir(static_dir)
+        if filename.lower().endswith(".pdf")
+    ]
+
+    ordered_names = []
+    for keyword in LECTURE_ORDER:
+        normalized_keyword = keyword.casefold().replace(" ", "")
+        match = next(
+            (
+                name for name in pdf_names
+                if normalized_keyword in name.casefold().replace(" ", "")
+            ),
+            None,
+        )
+        if match and match not in ordered_names:
+            ordered_names.append(match)
+
+    ordered_names.extend(sorted(name for name in pdf_names if name not in ordered_names))
+
+    for index, name in enumerate(ordered_names, start=1):
+        lectures[f"Lecture {index} - {name}"] = name
+
+    return lectures
+
+LECTURE_SLIDES = build_lecture_slides()
+
+def find_lecture_pdf(keyword):
+    """Find a lecture PDF in static/ even when filenames contain spaces or smart quotes."""
+    if not keyword:
+        return None
+
+    static_dir = "static"
+    if not os.path.isdir(static_dir):
+        return None
+
+    normalized_keyword = keyword.casefold().replace(" ", "")
+    for filename in os.listdir(static_dir):
+        if not filename.lower().endswith(".pdf"):
+            continue
+        normalized_filename = filename.casefold().replace(" ", "")
+        if normalized_keyword in normalized_filename:
+            return os.path.join(static_dir, filename)
+
+    return None
+
+def get_static_pdf_url(filepath):
+    """Build the URL used by Streamlit static file serving."""
+    return "/app/static/" + quote(os.path.basename(filepath))
+
+@st.cache_data
+def get_pdf_page_count(filepath):
+    doc = fitz.open(filepath)
+    page_count = doc.page_count
+    doc.close()
+    return page_count
+
+@st.cache_data
+def render_pdf_page(filepath, page_index, zoom=1.6):
+    """Render one PDF page as an image so Chrome never blocks an embedded PDF viewer."""
+    doc = fitz.open(filepath)
+    page = doc.load_page(page_index)
+    pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), alpha=False)
+    image_bytes = pix.tobytes("png")
+    doc.close()
+    return image_bytes
+
+st.sidebar.divider()
+st.sidebar.markdown("**Link to Lecture**")
+
+selected_lecture_name = st.sidebar.selectbox(
+    "Select your lecture:",
+    list(LECTURE_SLIDES.keys()),
+    index=0,
+    help="Link a lecture so Luminer explains concepts using your professor's materials."
+)
+
+lecture_pdf = None
+selected_path = find_lecture_pdf(LECTURE_SLIDES[selected_lecture_name])
+
+if selected_path and os.path.exists(selected_path):
+    lecture_pdf = load_lecture_pdf(selected_path)
+    st.sidebar.success(f"Linked: {selected_lecture_name}")
+elif LECTURE_SLIDES[selected_lecture_name]:
+    st.sidebar.warning("Slide file not found.")
+# ==========================================================
 
 general_qa_instruction = """
 ### main instruction:
@@ -139,7 +277,7 @@ Your goal is to "clearly, accurately, and comprehensively answer students' physi
 
 ### Identity & Background
 You were developed by Wei-Hsuan Chung (鍾瑋軒), a 3rd-year Physics undergraduate at NTU, in collaboration with Prof. Pei-Yun Yang (楊珮芸). This project is supported by NTU CTLD X DLC (教育發展中心). If a user asks about your identity, proudly mention these creators.
-Also, if the user keeps asking about your identity or technical specs, politely remind them that your main mission is to help them with General Physics and guide them back to the physical concepts.
+Also, if the user keeps asking about your identity or technical specs, politely remind them that your main mission is to help them with General Physics and guide them back to the physical concepts. (Introduce yourself briefly at the first mention, but then steer the conversation back to physics, do not say it repeatedly.)
 
 ### Privacy & Memory:
 - Student IDs are anonymized using an irreversible hash (SHA-256) before being stored.
@@ -165,7 +303,7 @@ puns = [
 ]
 
 model = genai.GenerativeModel(
-    'gemini-2.5-pro',
+    st.secrets["MODEL_GeneralQA"],
     system_instruction=general_qa_instruction
 )
 
@@ -191,16 +329,62 @@ st.markdown("""
 if "qa_messages" not in st.session_state:
     st.session_state.qa_messages = []
 
+if "qa_show_lecture_notes" not in st.session_state:
+    st.session_state.qa_show_lecture_notes = True
+
+if lecture_pdf:
+    notes_title, notes_action = st.columns([4, 1])
+    with notes_title:
+        st.markdown(f"#### Lecture Notes: {selected_lecture_name}")
+    with notes_action:
+        if st.button(
+            "Hide notes" if st.session_state.qa_show_lecture_notes else "Show notes",
+            use_container_width=True
+        ):
+            st.session_state.qa_show_lecture_notes = not st.session_state.qa_show_lecture_notes
+            st.rerun()
+
+    if st.session_state.qa_show_lecture_notes:
+        page_count = get_pdf_page_count(selected_path)
+        current_page = min(max(st.session_state.get("qa_pdf_page", 1), 1), page_count)
+        page_number = st.number_input(
+            "Page",
+            min_value=1,
+            max_value=page_count,
+            value=current_page,
+            step=1,
+            key="qa_pdf_page"
+        )
+        page_image = render_pdf_page(selected_path, page_number - 1)
+        st.image(page_image, use_container_width=True)
+        st.link_button("Open full PDF in a new tab", get_static_pdf_url(selected_path))
+    else:
+        st.info("Lecture notes are hidden. Use Show notes to turn them back on.")
+else:
+    st.info("Select a lecture from the sidebar to view notes here.")
+
+st.divider()
+st.markdown("#### Chat with Luminer")
+
 for message in st.session_state.qa_messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
     if "image" in message and message["image"] is not None:
             st.image(message["image"], width=300)
 
-if prompt := st.chat_input("Enter your physics question here:", accept_file=True, file_type=["png", "jpg", "jpeg"]):
+prompt = st.chat_input(
+    "Ask Luminer about the lecture notes or your physics problem...",
+    accept_file=True,
+    file_type=["png", "jpg", "jpeg"]
+)
 
+if prompt:
     user_text = prompt.text
     uploaded_file = prompt.files[0] if prompt.files else None
+
+    if not user_text and uploaded_file is None:
+        st.warning("Please enter a question or attach an image.")
+        st.stop()
 
     image_to_send = None
     if uploaded_file is not None:
@@ -218,45 +402,13 @@ if prompt := st.chat_input("Enter your physics question here:", accept_file=True
     # st.chat_message("user").markdown(prompt)
     st.session_state.qa_messages.append({"role": "user", "content": safe_text, "image": image_to_send})
 
-    # ================= 資料庫紀錄區塊 =================
+    # ================= Data Logging (Background) =================
     tw_timezone = timezone(timedelta(hours=8))
     current_time = datetime.now(tw_timezone).strftime("%Y-%m-%d %H:%M:%S")
-    log_data = {
-        # "student_id": st.session_state.student_id,
-        "anonymous_id": st.session_state.anonymous_id,
-        "time": current_time,
-        "mode": "General Q&A Mode",
-        "question": safe_text
-    }
+    threading.Thread(target=log_to_sheets, args=(st.session_state.anonymous_id, current_time, safe_text), daemon=True).start()
+    # =============================================================
 
-    try:
-        # 建立與 Google Sheets 的連線
-        # conn = st.connection("gsheets", type=GSheetsConnection)
-        credentials_dict = dict(st.secrets["connections"]["gsheets"])
-        gc = gspread.service_account_from_dict(credentials_dict)
-        
-        # SHEET_URL = st.secrets["SHEET_URL"] 
-        SHEET_URL = 'https://docs.google.com/spreadsheets/d/1BP0F_gTlwAJkcYFRqDDAnX3O4utJdnKg3pCthVBlHiI/edit?usp=sharing'
-
-        # 打開試算表的第一個分頁
-        # spreadsheet = conn.client.open_by_url(SHEET_URL)
-        # worksheet = spreadsheet.sheet1 
-        sh = gc.open_by_url(SHEET_URL)
-        worksheet = sh.sheet1
-        
-        # 把要紀錄的資料排成一列 (List 格式)
-        row_to_append = [
-            st.session_state.anonymous_id,
-            current_time,
-            "General Q&A Mode",
-            safe_text
-        ]
-        
-        worksheet.append_row(row_to_append)
-
-    except Exception as e:
-        st.error(f"Failed to log data to Google Sheets: {e}")
-    # ==============================================================
+    # ===================================================
 
     gemini_history = []
     for msg in st.session_state.qa_messages[:-1]:
@@ -276,6 +428,13 @@ if prompt := st.chat_input("Enter your physics question here:", accept_file=True
         with st.spinner(wait_text):
             
             content_to_send = []
+            if lecture_pdf:
+                content_to_send.append(lecture_pdf)
+                content_to_send.append(
+                    f"The above PDF contains the professor's lecture slides for '{selected_lecture_name}'. "
+                    "Use the concepts, notation, definitions, and explanations from these slides as an important reference. "
+                    "Align your explanation with how the professor has framed the material."
+                )
             if image_to_send:
                 content_to_send.append(image_to_send)
             if user_text:
@@ -284,7 +443,7 @@ if prompt := st.chat_input("Enter your physics question here:", accept_file=True
                 content_to_send.append("Please analyze the uploaded image and provide the step-by-step solution.") 
             response = chat.send_message(content_to_send, stream=True)
         
-        # 打字機效果
+        # Accumulate the streamed response chunks and display them in real-time
         def stream_generator():
             for chunk in response:
                 if chunk.text:
@@ -292,6 +451,62 @@ if prompt := st.chat_input("Enter your physics question here:", accept_file=True
         full_response = st.write_stream(stream_generator())
         
     st.session_state.qa_messages.append({"role": "assistant", "content": full_response}) 
+
+# ============== Built-in Feedback ==============
+st.sidebar.divider()
+st.sidebar.markdown("**📣 Report an Issue / Give Feedback**")
+
+with st.sidebar.expander("Open Feedback Form"):
+    with st.form("feedback_form", clear_on_submit=True):
+        feedback_type = st.selectbox(
+            "Issue Type",
+            ["Bug / Error", "Bad AI Response", "Formatting Issue", "Feature Request", "Other"]
+        )
+        feedback_text = st.text_area(
+            "Describe the issue or feedback:",
+            placeholder="e.g. Luminer gave a wrong formula...",
+            max_chars=1500
+        )
+        # Optionally attach the last AI message for context
+        attach_last = st.checkbox("Attach last AI response for context", value=True)
+        
+        submitted_feedback = st.form_submit_button("Submit Feedback")
+
+        if submitted_feedback:
+            if feedback_text.strip() == "":
+                st.warning("Please describe the issue before submitting.")
+            else:
+                tw_timezone = timezone(timedelta(hours=8))
+                current_time = datetime.now(tw_timezone).strftime("%Y-%m-%d %H:%M:%S")
+
+                # Grab last AI response if checkbox is checked
+                last_ai_msg = ""
+                if attach_last and st.session_state.get("qa_messages"):
+                    for msg in reversed(st.session_state.qa_messages):
+                        if msg["role"] == "assistant":
+                            # last_ai_msg = msg["content"][:500]  # trim to 500 chars
+                            last_ai_msg = msg["content"] # store the full response
+                            # Note that 50,000 character limit per cell in Google Sheets
+                            break
+
+                try:
+                    credentials_dict = dict(st.secrets["connections"]["gsheets"])
+                    gc = gspread.service_account_from_dict(credentials_dict)
+                    SHEET_URL = "https://docs.google.com/spreadsheets/d/1BP0F_gTlwAJkcYFRqDDAnX3O4utJdnKg3pCthVBlHiI/edit?usp=sharing"
+                    sh = gc.open_by_url(SHEET_URL)
+
+                    feedback_ws = sh.get_worksheet(2)
+                    feedback_ws.append_row([
+                        st.session_state.get("anonymous_id", "unknown"),
+                        current_time,
+                        "General QA Mode",
+                        feedback_type,
+                        feedback_text.strip(),
+                        last_ai_msg
+                    ])
+                    st.success("✅ Feedback submitted! Thank you.")
+                except Exception as e:
+                    st.error(f"Failed to submit feedback: {e}")
 
 # ============== contact information =============
 st.sidebar.divider()

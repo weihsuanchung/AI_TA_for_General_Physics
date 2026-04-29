@@ -1,3 +1,7 @@
+streamlit
 google-generativeai
 st-gsheets-connection
+gspread
 pandas
+pillow
+pymupdf
