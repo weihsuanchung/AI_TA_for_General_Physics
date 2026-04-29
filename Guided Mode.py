@@ -36,7 +36,7 @@ def anonymize_student_id(raw_id):
 
 # ================= Student ID Login Gate =================
 if "student_id" not in st.session_state:
-    st.title("🎓 Hi! I'm your AI teaching assistant, **Luminer**!")
+    st.title("Hi! I'm your AI teaching assistant, **Luminer**!")
     st.info("Please enter your student ID to get started. (請輸入學號以開始使用)")
 
     st.write("**Important:** Your student ID will be anonymized (hashed) and stored securely. We only use it to track your progress and analyze for our research. Your privacy is our top priority!")
@@ -62,8 +62,18 @@ if "student_id" not in st.session_state:
 # Show the logged-in student ID in the sidebar with a logout button
 st.sidebar.success(f"Student ID: {st.session_state.student_id}")
 if st.sidebar.button("Log out (登出)"):
-    del st.session_state.student_id
-    del st.session_state.anonymous_id
+    for key in [
+        "student_id",
+        "anonymous_id",
+        "pre_test_done",
+        "guided_messages",
+        "show_lecture_notes",
+        "guided_pdf_page",
+        "guided_history_choice",
+        "guided_save_history",
+        "guided_history_student_id",
+    ]:
+        st.session_state.pop(key, None)
     st.rerun()
 
 # ================= Pre-Test Survey Intercept Gate =================
@@ -141,6 +151,80 @@ def log_to_sheets(anonymous_id, current_time, safe_text):
     except Exception as e:
         print(f"Logging failed silently: {e}")  # won't show to user
 # ===============================================================
+
+# ================= Conversation History =================
+HISTORY_WORKSHEET_TITLE = "conversation_history"
+HISTORY_HEADERS = ["anonymous_id", "mode", "time", "role", "content"]
+
+def get_history_worksheet(spreadsheet):
+    try:
+        worksheet = spreadsheet.worksheet(HISTORY_WORKSHEET_TITLE)
+    except gspread.WorksheetNotFound:
+        worksheet = spreadsheet.add_worksheet(title=HISTORY_WORKSHEET_TITLE, rows=2000, cols=len(HISTORY_HEADERS))
+        worksheet.append_row(HISTORY_HEADERS)
+    return worksheet
+
+def load_conversation_history(anonymous_id, mode="Guided Mode", limit=30):
+    try:
+        credentials_dict = dict(st.secrets["connections"]["gsheets"])
+        gc = gspread.service_account_from_dict(credentials_dict)
+        sh = gc.open_by_url("https://docs.google.com/spreadsheets/d/1BP0F_gTlwAJkcYFRqDDAnX3O4utJdnKg3pCthVBlHiI/edit?usp=sharing")
+        worksheet = get_history_worksheet(sh)
+        all_rows = worksheet.get_all_values()
+        headers = all_rows[0] if all_rows else []
+    except Exception as e:
+        print(f"History loading failed silently: {e}")
+        return []
+
+    messages = []
+    for row in all_rows[1:]:
+        row_dict = dict(zip(headers, row))
+        if row_dict.get("anonymous_id") != str(anonymous_id):
+            continue
+        if row_dict.get("mode") != mode:
+            continue
+        role = row_dict.get("role")
+        content = row_dict.get("content")
+        if role in ("user", "assistant") and content:
+            messages.append({"role": role, "content": content, "image": None})
+
+    return messages[-limit:]
+
+def append_conversation_history(anonymous_id, mode, role, content):
+    try:
+        credentials_dict = dict(st.secrets["connections"]["gsheets"])
+        gc = gspread.service_account_from_dict(credentials_dict)
+        sh = gc.open_by_url("https://docs.google.com/spreadsheets/d/1BP0F_gTlwAJkcYFRqDDAnX3O4utJdnKg3pCthVBlHiI/edit?usp=sharing")
+        worksheet = get_history_worksheet(sh)
+        tw_timezone = timezone(timedelta(hours=8))
+        current_time = datetime.now(tw_timezone).strftime("%Y-%m-%d %H:%M:%S")
+        worksheet.append_row([anonymous_id, mode, current_time, role, content])
+    except Exception as e:
+        print(f"History saving failed silently: {e}")
+
+def delete_conversation_history(anonymous_id, mode="Guided Mode"):
+    try:
+        credentials_dict = dict(st.secrets["connections"]["gsheets"])
+        gc = gspread.service_account_from_dict(credentials_dict)
+        sh = gc.open_by_url("https://docs.google.com/spreadsheets/d/1BP0F_gTlwAJkcYFRqDDAnX3O4utJdnKg3pCthVBlHiI/edit?usp=sharing")
+        worksheet = get_history_worksheet(sh)
+        all_rows = worksheet.get_all_values()
+        headers = all_rows[0] if all_rows else []
+    except Exception as e:
+        print(f"History deletion failed silently: {e}")
+        return 0
+
+    rows_to_delete = []
+    for row_number, row in enumerate(all_rows[1:], start=2):
+        row_dict = dict(zip(headers, row))
+        if row_dict.get("anonymous_id") == str(anonymous_id) and row_dict.get("mode") == mode:
+            rows_to_delete.append(row_number)
+
+    for row_number in reversed(rows_to_delete):
+        worksheet.delete_rows(row_number)
+
+    return len(rows_to_delete)
+# ========================================================
 
 # ================= Lecture Slides Loader =================
 @st.cache_data
@@ -356,6 +440,12 @@ model = genai.GenerativeModel(
 st.title("🌟 Luminer: AI Teaching Assistant - Guided Mode")
 st.caption("Hello! I'm your AI teaching assistant for general physics. Feel free to ask me any physics-related questions!")
 
+if st.session_state.get("guided_history_student_id") != st.session_state.anonymous_id:
+    st.session_state.guided_history_student_id = st.session_state.anonymous_id
+    st.session_state.guided_messages = []
+    st.session_state.guided_history_choice = None
+    st.session_state.guided_save_history = False
+
 st.markdown("""
     <style>
     /* For mobile devices */
@@ -373,7 +463,13 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 if "guided_messages" not in st.session_state:
-    st.session_state.guided_messages = []
+    if st.session_state.get("guided_save_history", False):
+        st.session_state.guided_messages = load_conversation_history(st.session_state.anonymous_id)
+    else:
+        st.session_state.guided_messages = []
+
+    if st.session_state.get("guided_save_history", False) and st.session_state.guided_messages:
+        st.caption("Loaded your recent Guided Mode conversation history.")
 
 if "show_lecture_notes" not in st.session_state:
     st.session_state.show_lecture_notes = True
@@ -456,6 +552,66 @@ if lecture_pdf and show_slides:
 else:
     st.divider()
     st.markdown("#### Chat with Luminer")
+    history_options = ["Do not save this chat", "Save and restore chat history"]
+    history_index = None
+    if st.session_state.get("guided_history_choice") in history_options:
+        history_index = history_options.index(st.session_state.guided_history_choice)
+
+    history_choice = st.radio(
+        "Before chatting, choose whether Luminer should save this Guided Mode conversation:",
+        history_options,
+        index=history_index,
+        horizontal=True,
+        help=(
+            "If you choose to save, your Guided Mode text messages and Luminer's replies "
+            "are stored with your anonymized ID so they can be restored later. "
+            "Uploaded images are not saved."
+        )
+    )
+
+    if history_choice is None:
+        st.info("Please choose whether to save this chat history before chatting with Luminer.")
+        st.stop()
+
+    if history_choice != st.session_state.get("guided_history_choice"):
+        st.session_state.guided_history_choice = history_choice
+        st.session_state.guided_save_history = history_choice == "Save and restore chat history"
+        if st.session_state.guided_save_history:
+            st.session_state.guided_messages = load_conversation_history(st.session_state.anonymous_id)
+        else:
+            st.session_state.guided_messages = []
+        st.rerun()
+
+    st.session_state.guided_save_history = history_choice == "Save and restore chat history"
+
+    if st.session_state.guided_save_history:
+        confirm_clear_saved = st.checkbox(
+            "Also delete my saved Guided Mode history",
+            help="If you check this box, it will permanently delete your saved Guided Mode history from our records, so it cannot be restored later. This action cannot be undone.",
+        )
+    else:
+        confirm_clear_saved = False
+
+    if st.button("Clear chat"):
+        st.session_state.guided_messages = []
+        if st.session_state.guided_save_history and confirm_clear_saved:
+            deleted_count = delete_conversation_history(st.session_state.anonymous_id)
+            st.session_state.guided_clear_notice = f"Cleared current chat and deleted {deleted_count} saved history rows."
+        elif st.session_state.guided_save_history:
+            st.session_state.guided_clear_notice = "Cleared current chat only. Saved history was kept."
+        else:
+            st.session_state.guided_clear_notice = "Cleared current chat."
+        st.rerun()
+
+    if "guided_clear_notice" in st.session_state:
+        st.success(st.session_state.guided_clear_notice)
+        del st.session_state.guided_clear_notice
+
+    if st.session_state.guided_save_history:
+        st.info("Saved history is on. Text chat will be stored with your anonymized ID.")
+    else:
+        st.caption("Saved history is off. This chat is only kept in the current browser session.")
+
     # Normal full-width layout
     if False and lecture_pdf:
         st.info(f"📚 Linked: **{selected_lecture_name}** — Toggle above to view slides.")
@@ -505,6 +661,12 @@ if prompt:
 
     # st.chat_message("user").markdown(prompt)
     st.session_state.guided_messages.append({"role": "user", "content": safe_text, "image": image_to_send})
+    if st.session_state.get("guided_save_history", False):
+        threading.Thread(
+            target=append_conversation_history,
+            args=(st.session_state.anonymous_id, "Guided Mode", "user", safe_text),
+            daemon=True
+        ).start()
 
     # ================= Data Logging =================
     # tw_timezone = timezone(timedelta(hours=8))
@@ -613,6 +775,12 @@ if prompt:
         st.markdown(full_response)
         
     st.session_state.guided_messages.append({"role": "assistant", "content": full_response}) 
+    if st.session_state.get("guided_save_history", False):
+        threading.Thread(
+            target=append_conversation_history,
+            args=(st.session_state.anonymous_id, "Guided Mode", "assistant", full_response),
+            daemon=True
+        ).start()
 
 
 # ============== Built-in Feedback ==============

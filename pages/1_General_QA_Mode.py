@@ -20,80 +20,84 @@ st.set_page_config(layout="wide")
 genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 
 def anonymize_student_id(raw_id):
-    # 去除頭尾空白，並全部轉成小寫
+    # Normalize the student ID before hashing.
     clean_id = str(raw_id).strip().lower()
-    
-    salt = st.secrets["ID_SALT"]  # 從 Secrets 讀取 salt 值
+
+    salt = st.secrets["ID_SALT"]
     salted_id = clean_id + salt
-    
-    # 使用 SHA-256 演算法進行hashing
+
+    # Use SHA-256 to create an irreversible anonymous identifier.
     hash_object = hashlib.sha256(salted_id.encode('utf-8'))
-    
+
     hex_digest = hash_object.hexdigest()
     anonymous_number = str(int(hex_digest[:8], 16))
-    
+
     return anonymous_number
 
-# ================= 學號登入閘門 =================
+# ================= Student ID Login Gate =================
 if "student_id" not in st.session_state:
-    st.title("🎓 Hi! I'm your AI teaching assistant, Luminer!")
-    st.info("Please enter your student ID to get started. (請輸入學號以開始使用)")
+    st.title("Hi! I'm your AI teaching assistant, Luminer!")
+    st.info("Please enter your student ID to get started.")
 
     st.write("**Important**: Your student ID will be anonymized (hashed) and stored securely. We only use it to track your progress and analyze for our research. Your privacy is our top priority!")
-    
-    # 使用form讓users輸入並按下 Enter 或按鈕送出
+
+    # Use a form so students can submit by pressing Enter or clicking the button.
     with st.form("login_form"):
-        student_id_input = st.text_input("Student ID (學號):")
-        submitted = st.form_submit_button("Log in (登入)")
-        
+        student_id_input = st.text_input("Student ID:")
+        submitted = st.form_submit_button("Log in")
+
         if submitted:
             if student_id_input.strip() == "":
-                st.error("Student ID cannot be empty! (學號不能為空！)")
+                st.error("Student ID cannot be empty.")
             else:
                 anonymous_id = anonymize_student_id(student_id_input)
-                # 把學號存進 session_state，並重新整理網頁
+                # Store login information in session state.
                 st.session_state.student_id = student_id_input.strip()
                 st.session_state.anonymous_id = anonymous_id
                 st.rerun()
-                
+
     st.stop()
 # ======================================================
-# 在側邊欄或標題顯示學號
+
+# Show the logged-in student ID and provide logout.
 st.sidebar.success(f"Student ID: {st.session_state.student_id}")
-if st.sidebar.button("Log out (登出)"):
-    del st.session_state.student_id
-    del st.session_state.anonymous_id
+if st.sidebar.button("Log out"):
+    for key in [
+        "student_id",
+        "anonymous_id",
+        "pre_test_done",
+        "qa_messages",
+        "qa_history_choice",
+        "qa_save_history",
+        "qa_history_student_id",
+        "qa_previous_save_history",
+    ]:
+        st.session_state.pop(key, None)
     st.rerun()
 
-# ================= 前測問卷攔截閘門 =================
+# ================= Pre-Test Survey Gate =================
 if "pre_test_done" not in st.session_state:
     try:
-        # 連線到 Google Sheets
+        # Connect to Google Sheets and read pre-test completion records.
         credentials_dict = dict(st.secrets["connections"]["gsheets"])
         gc = gspread.service_account_from_dict(credentials_dict)
-        SHEET_URL = "https://docs.google.com/spreadsheets/d/1BP0F_gTlwAJkcYFRqDDAnX3O4utJdnKg3pCthVBlHiI/edit?usp=sharing" 
+        SHEET_URL = "https://docs.google.com/spreadsheets/d/1BP0F_gTlwAJkcYFRqDDAnX3O4utJdnKg3pCthVBlHiI/edit?usp=sharing"
         sh = gc.open_by_url(SHEET_URL)
-        
-        # 取得第二個分頁
-        worksheet2 = sh.get_worksheet(1) 
-        
+
+        worksheet2 = sh.get_worksheet(1)
         existing_ids = worksheet2.col_values(1)
-        
-        # 檢查現在登入的學號是不是已經在問卷紀錄裡了
-        if st.session_state.anonymous_id in existing_ids:
-            st.session_state.pre_test_done = True
-        else:
-            st.session_state.pre_test_done = False
-            
+
+        st.session_state.pre_test_done = st.session_state.anonymous_id in existing_ids
+
     except Exception as e:
         st.error(f"Failed to read pre-test status: {e}")
         st.stop()
 
-# 如果還沒做過問卷，就顯示表單並擋住後面的對話框
+# Show the pre-test survey if the current student has not completed it.
 if not st.session_state.pre_test_done:
-    st.title("📝 AI Literacy Survey (pre-test)")
-    st.info("Instructions: Please indicate your level of agreement with the following statements. This will help us understand your current familiarity with AI and physics. (請根據以下陳述選擇你的認同程度，這將幫助我們了解你目前對 AI 和物理的熟悉程度。)")
-    
+    st.title("AI Literacy Survey (pre-test)")
+    st.info("Instructions: Please indicate your level of agreement with the following statements. This will help us understand your current familiarity with AI and physics.")
+
     with st.form("pre_test_form"):
         q1 = st.slider("1. I know how to ask AI questions that help clarify my understanding. (5 = Strongly Agree, 4 = Agree, 3 = Neutral, 2 = Disagree, 1 = Strongly Disagree)", 1, 5, 3)
         q2 = st.slider("2. When using AI, I explain my own reasoning or attempt before asking for help. (5 = Strongly Agree, 4 = Agree, 3 = Neutral, 2 = Disagree, 1 = Strongly Disagree)", 1, 5, 3)
@@ -102,26 +106,21 @@ if not st.session_state.pre_test_done:
         q5 = st.slider("5. When AI responses are unclear, I ask follow-up questions to improve my understanding. (5 = Strongly Agree, 4 = Agree, 3 = Neutral, 2 = Disagree, 1 = Strongly Disagree)", 1, 5, 3)
         q6 = st.slider("6. Using AI helps me identify gaps in my understanding. (5 = Strongly Agree, 4 = Agree, 3 = Neutral, 2 = Disagree, 1 = Strongly Disagree)", 1, 5, 3)
 
-        
-        submitted = st.form_submit_button("Submit (送出)")
-        
+        submitted = st.form_submit_button("Submit")
+
         if submitted:
-            tw_timezone = timezone(timedelta(hours=8))
-            current_time = datetime.now(tw_timezone).strftime("%Y-%m-%d %H:%M:%S")
             row_to_append = [st.session_state.anonymous_id, q1, q2, q3, q4, q5, q6]
-            
+
             try:
                 credentials_dict = dict(st.secrets["connections"]["gsheets"])
                 gc = gspread.service_account_from_dict(credentials_dict)
                 SHEET_URL = "https://docs.google.com/spreadsheets/d/1BP0F_gTlwAJkcYFRqDDAnX3O4utJdnKg3pCthVBlHiI/edit?usp=sharing"
                 sh = gc.open_by_url(SHEET_URL)
                 worksheet2_write = sh.get_worksheet(1)
-                # 寫入第二個分頁
                 worksheet2_write.append_row(row_to_append)
-                
-                # 標記為已完成，重新整理網頁
+
                 st.session_state.pre_test_done = True
-                st.success("✅ Pre-test submitted successfully! You can now access the AI teaching assistant.")
+                st.success("Pre-test submitted successfully! You can now access the AI teaching assistant.")
                 st.rerun()
             except Exception as e:
                 st.error(f"Pre-test submission failed: {e}")
@@ -140,6 +139,82 @@ def log_to_sheets(anonymous_id, current_time, safe_text):
     except Exception as e:
         print(f"Logging failed silently: {e}")
 # ===============================================================
+
+# ================= Conversation History =================
+HISTORY_WORKSHEET_TITLE = "conversation_history"
+HISTORY_HEADERS = ["anonymous_id", "mode", "time", "role", "content"]
+
+def get_history_worksheet(spreadsheet):
+    try:
+        worksheet = spreadsheet.worksheet(HISTORY_WORKSHEET_TITLE)
+    except gspread.WorksheetNotFound:
+        worksheet = spreadsheet.add_worksheet(title=HISTORY_WORKSHEET_TITLE, rows=2000, cols=len(HISTORY_HEADERS))
+        worksheet.append_row(HISTORY_HEADERS)
+    return worksheet
+
+def load_conversation_history(anonymous_id, mode="General QA Mode", limit=30):
+    try:
+        credentials_dict = dict(st.secrets["connections"]["gsheets"])
+        gc = gspread.service_account_from_dict(credentials_dict)
+        sh = gc.open_by_url("https://docs.google.com/spreadsheets/d/1BP0F_gTlwAJkcYFRqDDAnX3O4utJdnKg3pCthVBlHiI/edit?usp=sharing")
+        worksheet = get_history_worksheet(sh)
+
+        # Faster than get_all_records(); still fetches the worksheet, then filters locally.
+        all_rows = worksheet.get_all_values()
+        headers = all_rows[0] if all_rows else []
+    except Exception as e:
+        print(f"History loading failed silently: {e}")
+        return []
+
+    messages = []
+    for row in all_rows[1:]:
+        row_dict = dict(zip(headers, row))
+        if row_dict.get("anonymous_id") != str(anonymous_id):
+            continue
+        if row_dict.get("mode") != mode:
+            continue
+        role = row_dict.get("role")
+        content = row_dict.get("content")
+        if role in ("user", "assistant") and content:
+            messages.append({"role": role, "content": content, "image": None})
+
+    return messages[-limit:]
+
+def append_conversation_history(anonymous_id, mode, role, content):
+    try:
+        credentials_dict = dict(st.secrets["connections"]["gsheets"])
+        gc = gspread.service_account_from_dict(credentials_dict)
+        sh = gc.open_by_url("https://docs.google.com/spreadsheets/d/1BP0F_gTlwAJkcYFRqDDAnX3O4utJdnKg3pCthVBlHiI/edit?usp=sharing")
+        worksheet = get_history_worksheet(sh)
+        tw_timezone = timezone(timedelta(hours=8))
+        current_time = datetime.now(tw_timezone).strftime("%Y-%m-%d %H:%M:%S")
+        worksheet.append_row([anonymous_id, mode, current_time, role, content])
+    except Exception as e:
+        print(f"History saving failed silently: {e}")
+
+def delete_conversation_history(anonymous_id, mode="General QA Mode"):
+    try:
+        credentials_dict = dict(st.secrets["connections"]["gsheets"])
+        gc = gspread.service_account_from_dict(credentials_dict)
+        sh = gc.open_by_url("https://docs.google.com/spreadsheets/d/1BP0F_gTlwAJkcYFRqDDAnX3O4utJdnKg3pCthVBlHiI/edit?usp=sharing")
+        worksheet = get_history_worksheet(sh)
+        all_rows = worksheet.get_all_values()
+        headers = all_rows[0] if all_rows else []
+    except Exception as e:
+        print(f"History deletion failed silently: {e}")
+        return 0
+
+    rows_to_delete = []
+    for row_number, row in enumerate(all_rows[1:], start=2):
+        row_dict = dict(zip(headers, row))
+        if row_dict.get("anonymous_id") == str(anonymous_id) and row_dict.get("mode") == mode:
+            rows_to_delete.append(row_number)
+
+    for row_number in reversed(rows_to_delete):
+        worksheet.delete_rows(row_number)
+
+    return len(rows_to_delete)
+# ========================================================
 
 # ================= Lecture Slides Loader =================
 @st.cache_data
@@ -283,7 +358,7 @@ general_qa_instruction = """
 ### main instruction:
 You are an AI teaching assistant dedicated to university-level General Physics.
 Your name is Luminer, and you are here to help students solve physics problems in a clear and comprehensive way.
-You are currently in 【General QA Mode】.
+You are currently in ?eneral QA Mode??
 Your goal is to "clearly, accurately, and comprehensively answer students' physics questions."
 1. Direct and Detailed Solutions: When a student asks a question, provide the complete, step-by-step physics derivation and the final answer.
 2. Conceptual Breakdown: While giving the answer, clearly explain the core physics concepts behind it so the student understands the "why".
@@ -299,7 +374,7 @@ Your goal is to "clearly, accurately, and comprehensively answer students' physi
    - NEVER output a paragraph longer than 3 sentences. If it's longer, break it into a new paragraph or a list.
 
 ### Identity & Background
-You were developed by Wei-Hsuan Chung (鍾瑋軒), a 3rd-year Physics undergraduate at NTU, in collaboration with Prof. Pei-Yun Yang (楊珮芸). This project is supported by NTU CTLD X DLC (教育發展中心). If a user asks about your identity, proudly mention these creators.
+You were developed by Wei-Hsuan Chung (?曄?頠?, a 3rd-year Physics undergraduate at NTU, in collaboration with Prof. Pei-Yun Yang (璆??. This project is supported by NTU CTLD X DLC (??澆?銝剖?). If a user asks about your identity, proudly mention these creators.
 Also, if the user keeps asking about your identity or technical specs, politely remind them that your main mission is to help them with General Physics and guide them back to the physical concepts. (Introduce yourself briefly at the first mention, but then steer the conversation back to physics, do not say it repeatedly.)
 
 ### Privacy & Memory:
@@ -313,7 +388,7 @@ Respond humorously and briefly, but then steer the conversation back to physics.
 """
 # puns for fun while thinking
 puns = [
-    "Thinking... Schrödinger's cat is both done and not done. Let me check the box.",
+    "Thinking... Schr繹dinger's cat is both done and not done. Let me check the box.",
     "Thinking... I have so much Potential. (Energy, that is.)",
     "Thinking... According to Einstein, this wait is relative.",
     "Thinking... Don't be negative, unless you're an electron.",
@@ -330,8 +405,14 @@ model = genai.GenerativeModel(
     system_instruction=general_qa_instruction
 )
 
-st.title("🌟 Luminer: AI Teaching Assistant - General Q&A Mode")
+st.title("?? Luminer: AI Teaching Assistant - General Q&A Mode")
 st.caption("Hello! I'm your AI teaching assistant for general physics. Get complete physics derivations and conceptual breakdowns here!")
+
+if st.session_state.get("qa_history_student_id") != st.session_state.anonymous_id:
+    st.session_state.qa_history_student_id = st.session_state.anonymous_id
+    st.session_state.qa_messages = []
+    st.session_state.qa_history_choice = None
+    st.session_state.qa_save_history = False
 
 st.markdown("""
     <style>
@@ -350,7 +431,13 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 if "qa_messages" not in st.session_state:
-    st.session_state.qa_messages = []
+    if st.session_state.get("qa_save_history", False):
+        st.session_state.qa_messages = load_conversation_history(st.session_state.anonymous_id)
+    else:
+        st.session_state.qa_messages = []
+
+    if st.session_state.get("qa_save_history", False) and st.session_state.qa_messages:
+        st.caption("Loaded your recent General QA conversation history.")
 
 if "qa_show_lecture_notes" not in st.session_state:
     st.session_state.qa_show_lecture_notes = True
@@ -389,6 +476,66 @@ else:
 st.divider()
 st.markdown("#### Chat with Luminer")
 
+history_options = ["Do not save this chat", "Save and restore chat history"]
+history_index = None
+if st.session_state.get("qa_history_choice") in history_options:
+    history_index = history_options.index(st.session_state.qa_history_choice)
+
+history_choice = st.radio(
+    "Before chatting, choose whether Luminer should save this General QA conversation:",
+    history_options,
+    index=history_index,
+    horizontal=True,
+    help=(
+        "If you choose to save, your General QA text messages and Luminer's replies "
+        "are stored with your anonymized ID so they can be restored later. "
+        "Uploaded images are not saved."
+    )
+)
+
+if history_choice is None:
+    st.info("Please choose whether to save this chat history before chatting with Luminer.")
+    st.stop()
+
+if history_choice != st.session_state.get("qa_history_choice"):
+    st.session_state.qa_history_choice = history_choice
+    st.session_state.qa_save_history = history_choice == "Save and restore chat history"
+    if st.session_state.qa_save_history:
+        st.session_state.qa_messages = load_conversation_history(st.session_state.anonymous_id)
+    else:
+        st.session_state.qa_messages = []
+    st.rerun()
+
+st.session_state.qa_save_history = history_choice == "Save and restore chat history"
+
+if st.session_state.qa_save_history:
+    confirm_clear_saved = st.checkbox(
+        "Also delete my saved General QA history",
+        help="If you check this box, it will permanently delete your saved General QA history from our records, so it cannot be restored later. This action cannot be undone.",
+    )
+else:
+    confirm_clear_saved = False
+
+if st.button("Clear chat"):
+    st.session_state.qa_messages = []
+    if st.session_state.qa_save_history and confirm_clear_saved:
+        deleted_count = delete_conversation_history(st.session_state.anonymous_id)
+        st.session_state.qa_clear_notice = f"Cleared current chat and deleted {deleted_count} saved history rows."
+    elif st.session_state.qa_save_history:
+        st.session_state.qa_clear_notice = "Cleared current chat only. Saved history was kept."
+    else:
+        st.session_state.qa_clear_notice = "Cleared current chat."
+    st.rerun()
+
+if "qa_clear_notice" in st.session_state:
+    st.success(st.session_state.qa_clear_notice)
+    del st.session_state.qa_clear_notice
+
+if st.session_state.qa_save_history:
+    st.info("Saved history is on. Text chat will be stored with your anonymized ID.")
+else:
+    st.caption("Saved history is off. This chat is only kept in the current browser session.")
+
 for message in st.session_state.qa_messages:
     with st.chat_message(message["role"]):
         st.markdown(normalize_math_markdown(message["content"]))
@@ -424,6 +571,12 @@ if prompt:
 
     # st.chat_message("user").markdown(prompt)
     st.session_state.qa_messages.append({"role": "user", "content": safe_text, "image": image_to_send})
+    if st.session_state.get("qa_save_history", False):
+        threading.Thread(
+            target=append_conversation_history,
+            args=(st.session_state.anonymous_id, "General QA Mode", "user", safe_text),
+            daemon=True
+        ).start()
 
     # ================= Data Logging (Background) =================
     tw_timezone = timezone(timedelta(hours=8))
@@ -466,7 +619,7 @@ if prompt:
                 content_to_send.append("Please analyze the uploaded image and provide the step-by-step solution.") 
             response = chat.send_message(content_to_send, stream=True)
         
-        # 打字機效果
+        # Collect the streamed response before rendering so LaTeX can be normalized.
         full_response = ""
         for chunk in response:
             if chunk.text:
@@ -475,10 +628,16 @@ if prompt:
         st.markdown(full_response)
         
     st.session_state.qa_messages.append({"role": "assistant", "content": full_response}) 
+    if st.session_state.get("qa_save_history", False):
+        threading.Thread(
+            target=append_conversation_history,
+            args=(st.session_state.anonymous_id, "General QA Mode", "assistant", full_response),
+            daemon=True
+        ).start()
 
 # ============== Built-in Feedback ==============
 st.sidebar.divider()
-st.sidebar.markdown("**📣 Report an Issue / Give Feedback**")
+st.sidebar.markdown("**? Report an Issue / Give Feedback**")
 
 with st.sidebar.expander("Open Feedback Form"):
     with st.form("feedback_form", clear_on_submit=True):
@@ -528,7 +687,7 @@ with st.sidebar.expander("Open Feedback Form"):
                         feedback_text.strip(),
                         last_ai_msg
                     ])
-                    st.success("✅ Feedback submitted! Thank you.")
+                    st.success("??Feedback submitted! Thank you.")
                 except Exception as e:
                     st.error(f"Failed to submit feedback: {e}")
 
