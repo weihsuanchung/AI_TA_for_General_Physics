@@ -36,7 +36,7 @@ def anonymize_student_id(raw_id):
 
 # ================= Student ID Login Gate =================
 if "student_id" not in st.session_state:
-    st.title("Hi! I'm your AI teaching assistant, **Luminer**!")
+    st.title("Hi! I'm your AI teaching assistant, **🌟 Luminer**!")
     st.info("Please enter your student ID to get started. (請輸入學號以開始使用)")
 
     st.write("**Important:** Your student ID will be anonymized (hashed) and stored securely. We only use it to track your progress and analyze for our research. Your privacy is our top priority!")
@@ -566,6 +566,7 @@ else:
             "If you choose to save, your Guided Mode text messages and Luminer's replies "
             "are stored with your anonymized ID so they can be restored later. "
             "Uploaded images are not saved."
+            "Maximum of 30 recent messages (including your questions and Luminer's replies) will be saved and restored."
         )
     )
 
