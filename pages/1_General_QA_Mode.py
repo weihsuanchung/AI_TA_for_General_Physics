@@ -489,7 +489,7 @@ history_choice = st.radio(
     help=(
         "If you choose to save, your General QA text messages and Luminer's replies "
         "are stored with your anonymized ID so they can be restored later. "
-        "Uploaded images are not saved."
+        "Uploaded images are not saved. "
         "Maximum of 30 recent messages (including your questions and Luminer's replies) will be saved and restored."
     )
 )
