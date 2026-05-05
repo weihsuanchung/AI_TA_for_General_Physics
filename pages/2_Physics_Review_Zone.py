@@ -26,6 +26,7 @@ CHAPTERS = {
     "Magnetostatics": "Magnetic fields, Lorentz force, Biot-Savart law, Ampere's law, magnetic force on currents",
     "Electromagnetic Induction": "Faraday's law, Lenz's law, motional emf, induced electric fields, generators",
     "Inductance": "Self-inductance, mutual inductance, RL circuits, magnetic energy, inductors",
+    "Alternating Current": "AC circuits, impedance, reactance, resonance, power in AC circuits",
 }
 
 CHAPTER_ORDER = list(CHAPTERS.keys())
