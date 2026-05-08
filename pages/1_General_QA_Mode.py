@@ -406,7 +406,7 @@ model = genai.GenerativeModel(
     system_instruction=general_qa_instruction
 )
 
-st.title("?? Luminer: AI Teaching Assistant - General Q&A Mode")
+st.title("🌟 Luminer: AI Teaching Assistant - General Q&A Mode")
 st.caption("Hello! I'm your AI teaching assistant for general physics. Get complete physics derivations and conceptual breakdowns here!")
 
 if st.session_state.get("qa_history_student_id") != st.session_state.anonymous_id:
