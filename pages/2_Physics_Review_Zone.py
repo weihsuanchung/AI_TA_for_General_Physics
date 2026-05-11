@@ -27,6 +27,7 @@ CHAPTERS = {
     "Electromagnetic Induction": "Faraday's law, Lenz's law, motional emf, induced electric fields, generators",
     "Inductance": "Self-inductance, mutual inductance, RL circuits, magnetic energy, inductors",
     "Alternating Current": "AC circuits, impedance, reactance, resonance, power in AC circuits",
+    "Electromagnetic Waves": "Maxwell's equations, wave equation, electromagnetic spectrum, polarization, reflection and refraction",
 }
 
 CHAPTER_ORDER = list(CHAPTERS.keys())

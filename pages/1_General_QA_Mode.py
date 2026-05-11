@@ -237,6 +237,7 @@ LECTURE_ORDER = [
     "Electromagnetic Induction",
     "Inductance",
     "Alternating Current",
+    "Electromagnetic Waves",
 ]
 
 def clean_lecture_name(filename):
