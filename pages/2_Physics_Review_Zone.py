@@ -28,6 +28,7 @@ CHAPTERS = {
     "Inductance": "Self-inductance, mutual inductance, RL circuits, magnetic energy, inductors",
     "Alternating Current": "AC circuits, impedance, reactance, resonance, power in AC circuits",
     "Electromagnetic Waves": "Maxwell's equations, wave equation, electromagnetic spectrum, polarization, reflection and refraction",
+    "Nature of Light": "Wave-particle duality, photoelectric effect, interference and diffraction, polarization of light",
 }
 
 CHAPTER_ORDER = list(CHAPTERS.keys())
