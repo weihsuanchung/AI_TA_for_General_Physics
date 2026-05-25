@@ -18,6 +18,65 @@ st.set_page_config(layout="wide")
 
 # Read API key from Secrets and configure GenAI
 genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1BP0F_gTlwAJkcYFRqDDAnX3O4utJdnKg3pCthVBlHiI/edit?usp=sharing"
+LIKE_HINT_TEXT = "Did this guidance help you solve the problem? Let Luminer know with a like!"
+
+def record_quick_like(mode, liked_response=""):
+    tw_timezone = timezone(timedelta(hours=8))
+    current_time = datetime.now(tw_timezone).strftime("%Y-%m-%d %H:%M:%S")
+    row_to_append = [
+        st.session_state.get("anonymous_id", "unknown"),
+        current_time,
+        mode,
+        "Like\U0001F44D"
+    ]
+
+    last_error = None
+    for attempt in range(3):
+        try:
+            credentials_dict = dict(st.secrets["connections"]["gsheets"])
+            gc = gspread.service_account_from_dict(credentials_dict)
+            sh = gc.open_by_url(SHEET_URL)
+            worksheet = sh.sheet1
+            worksheet.append_row(row_to_append)
+            return True, None
+        except Exception as e:
+            last_error = e
+            time.sleep(0.8 * (attempt + 1))
+
+    return False, last_error
+
+def render_like_prompt(message_content, key):
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stHorizontalBlock"] .stButton {
+            margin-bottom: 0rem;
+        }
+        div[data-testid="stHorizontalBlock"] .stButton > button {
+            min-height: 2rem;
+            padding: 0.15rem 0.55rem;
+        }
+        .luminer-like-hint {
+            margin: 0;
+            line-height: 1.35;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+    like_button_col, like_text_col = st.columns([2, 10], vertical_alignment="center")
+    with like_button_col:
+        liked = st.button("( ദ്ദി ˙ᗜ˙ )", key=key, help=LIKE_HINT_TEXT)
+    with like_text_col:
+        st.markdown(f"<p class='luminer-like-hint'>{LIKE_HINT_TEXT}</p>", unsafe_allow_html=True)
+
+    if liked:
+        ok, err = record_quick_like("Guided Mode", message_content)
+        if ok:
+            st.success("Thank you for giving Luminer a LIKE!")
+        else:
+            st.warning("The LIKE was not saved because the Google Sheets connection was interrupted. Please click it again in a moment.")
 
 def anonymize_student_id(raw_id):
     # Remove leading/trailing whitespace and convert to lowercase
@@ -439,11 +498,11 @@ Briefly name and explain the main concept needed.
 
 ### Quick check
 Ask exactly ONE short question that checks the student's understanding of that concept.
-
-Stop there and wait for the student's answer unless the student explicitly asks for more explanation. (Don't say it repeatedly just want student to think, but if the student keeps asking for more explanation without answering the check question, give a simpler explanation or a tiny example to build intuition before asking another check question.)
+Wait for the student's answer unless the student explicitly asks for more explanation. (Don't say it, just want student to think, but if the student keeps asking for more explanation without answering the check question, give a simpler explanation or a tiny example to build intuition before asking another check question.)
+Don't show "Stop here and wait for the student's answer." in the response, just actually stop and wait for the student's next message.
 
 ### Identity & Background
-You were developed by Wei-Hsuan Chung (鍾瑋軒), a 3rd-year Physics undergraduate at NTU, in collaboration with Prof. Pei-Yun Yang (楊珮芸). This project is supported by NTU CTLD X DLC (教育發展中心). If a user asks about your identity, proudly mention these creators.
+You were developed by Wei-Hsuan Chung (鍾瑋軒), a 3rd-year Physics undergraduate at NTU, in collaboration with Prof. Pei-Yun Yang (楊珮芸). This project is supported by NTU CTLD X DLC (教學發展中心). If a user asks about your identity, proudly mention these creators.
 Also, if the user keeps asking about your identity or technical specs, politely remind them that your main mission is to help them with General Physics and guide them back to the physical concepts. (Introduce yourself briefly at the first mention, but then steer the conversation back to physics, do not say it repeatedly.)
 
 ### Privacy & Memory:
@@ -542,6 +601,22 @@ if lecture_pdf:
 else:
     st.info("Select a lecture from the sidebar to view notes here.")
 
+prompt = st.chat_input(
+    "Ask Luminer about the lecture notes or your physics problem...",
+    accept_file=True,
+    file_type=["png", "jpg", "jpeg"]
+)
+
+last_assistant_index = None
+if not prompt:
+    last_assistant_index = next(
+        (
+            index for index in range(len(st.session_state.guided_messages) - 1, -1, -1)
+            if st.session_state.guided_messages[index]["role"] == "assistant"
+        ),
+        None
+    )
+
 if lecture_pdf and show_slides:
     # Split layout
     col_pdf, col_chat = st.columns([1, 1], gap="medium")
@@ -568,9 +643,11 @@ if lecture_pdf and show_slides:
         st.markdown("#### 💬 Chat with Luminer")
         chat_container = st.container(height=750)
         with chat_container:
-            for message in st.session_state.guided_messages:
+            for message_index, message in enumerate(st.session_state.guided_messages):
                 with st.chat_message(message["role"]):
                     st.markdown(normalize_math_markdown(message["content"]))
+                    if message["role"] == "assistant" and message_index == last_assistant_index:
+                        render_like_prompt(message["content"], f"guided_like_button_side_{message_index}")
                 if "image" in message and message["image"] is not None:
                     st.image(message["image"], width=300)
 else:
@@ -640,20 +717,15 @@ else:
     # Normal full-width layout
     if False and lecture_pdf:
         st.info(f"📚 Linked: **{selected_lecture_name}** — Toggle above to view slides.")
-    for message in st.session_state.guided_messages:
+    for message_index, message in enumerate(st.session_state.guided_messages):
         with st.chat_message(message["role"]):
             st.markdown(normalize_math_markdown(message["content"]))
+            if message["role"] == "assistant" and message_index == last_assistant_index:
+                render_like_prompt(message["content"], f"guided_like_button_{message_index}")
         if "image" in message and message["image"] is not None:
             st.image(message["image"], width=300)
 # ==========================================
 
-
-# Input
-prompt = st.chat_input(
-    "Ask Luminer about the lecture notes or your physics problem...",
-    accept_file=True,
-    file_type=["png", "jpg", "jpeg"]
-)
 
 if prompt:
     user_text = prompt.text
@@ -801,6 +873,7 @@ if prompt:
                 full_response += chunk.text
         full_response = normalize_math_markdown(full_response)
         st.markdown(full_response)
+        render_like_prompt(full_response, f"guided_like_button_new_{len(st.session_state.guided_messages)}")
         
     st.session_state.guided_messages.append({"role": "assistant", "content": full_response}) 
     if st.session_state.get("guided_save_history", False):

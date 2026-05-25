@@ -18,6 +18,65 @@ from urllib.parse import quote
 st.set_page_config(layout="wide")
 
 genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1BP0F_gTlwAJkcYFRqDDAnX3O4utJdnKg3pCthVBlHiI/edit?usp=sharing"
+LIKE_HINT_TEXT = "Did Luminer solve your problem well? Let Luminer know with a like!"
+
+def record_quick_like(mode, liked_response=""):
+    tw_timezone = timezone(timedelta(hours=8))
+    current_time = datetime.now(tw_timezone).strftime("%Y-%m-%d %H:%M:%S")
+    row_to_append = [
+        st.session_state.get("anonymous_id", "unknown"),
+        current_time,
+        mode,
+        "Like\U0001F44D"
+    ]
+
+    last_error = None
+    for attempt in range(3):
+        try:
+            credentials_dict = dict(st.secrets["connections"]["gsheets"])
+            gc = gspread.service_account_from_dict(credentials_dict)
+            sh = gc.open_by_url(SHEET_URL)
+            worksheet = sh.sheet1
+            worksheet.append_row(row_to_append)
+            return True, None
+        except Exception as e:
+            last_error = e
+            time.sleep(0.8 * (attempt + 1))
+
+    return False, last_error
+
+def render_like_prompt(message_content, key):
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stHorizontalBlock"] .stButton {
+            margin-bottom: 0rem;
+        }
+        div[data-testid="stHorizontalBlock"] .stButton > button {
+            min-height: 2rem;
+            padding: 0.15rem 0.55rem;
+        }
+        .luminer-like-hint {
+            margin: 0;
+            line-height: 1.35;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+    like_button_col, like_text_col = st.columns([2, 10], vertical_alignment="center")
+    with like_button_col:
+        liked = st.button("( ദ്ദി ˙ᗜ˙ )", key=key, help=LIKE_HINT_TEXT)
+    with like_text_col:
+        st.markdown(f"<p class='luminer-like-hint'>{LIKE_HINT_TEXT}</p>", unsafe_allow_html=True)
+
+    if liked:
+        ok, err = record_quick_like("General Q&A Mode", message_content)
+        if ok:
+            st.success("Thank you for giving Luminer a LIKE!")
+        else:
+            st.warning("The LIKE was not saved because the Google Sheets connection was interrupted. Please click it again in a moment.")
 
 def anonymize_student_id(raw_id):
     # Normalize the student ID before hashing.
@@ -377,7 +436,7 @@ Your goal is to "clearly, accurately, and comprehensively answer students' physi
    - NEVER output a paragraph longer than 3 sentences. If it's longer, break it into a new paragraph or a list.
 
 ### Identity & Background
-You were developed by Wei-Hsuan Chung (?曄?頠?, a 3rd-year Physics undergraduate at NTU, in collaboration with Prof. Pei-Yun Yang (璆??. This project is supported by NTU CTLD X DLC (??澆?銝剖?). If a user asks about your identity, proudly mention these creators.
+You were developed by Wei-Hsuan Chung (鍾瑋軒), a 3rd-year Physics undergraduate at NTU, in collaboration with Prof. Pei-Yun Yang (楊珮芸). This project is supported by NTU CTLD X DLC (教學發展中心與數位學習中心). If a user asks about your identity, proudly mention these creators.
 Also, if the user keeps asking about your identity or technical specs, politely remind them that your main mission is to help them with General Physics and guide them back to the physical concepts. (Introduce yourself briefly at the first mention, but then steer the conversation back to physics, do not say it repeatedly.)
 
 ### Privacy & Memory:
@@ -391,7 +450,7 @@ Respond humorously and briefly, but then steer the conversation back to physics.
 """
 # puns for fun while thinking
 puns = [
-    "Thinking... Schr繹dinger's cat is both done and not done. Let me check the box.",
+    "Thinking... Schrodinger's cat is both done and not done. Let me check the box.",
     "Thinking... I have so much Potential. (Energy, that is.)",
     "Thinking... According to Einstein, this wait is relative.",
     "Thinking... Don't be negative, unless you're an electron.",
@@ -540,17 +599,29 @@ if st.session_state.qa_save_history:
 else:
     st.caption("Saved history is off. This chat is only kept in the current browser session.")
 
-for message in st.session_state.qa_messages:
-    with st.chat_message(message["role"]):
-        st.markdown(normalize_math_markdown(message["content"]))
-    if "image" in message and message["image"] is not None:
-            st.image(message["image"], width=300)
-
 prompt = st.chat_input(
     "Ask Luminer about the lecture notes or your physics problem...",
     accept_file=True,
     file_type=["png", "jpg", "jpeg"]
 )
+
+last_assistant_index = None
+if not prompt:
+    last_assistant_index = next(
+        (
+            index for index in range(len(st.session_state.qa_messages) - 1, -1, -1)
+            if st.session_state.qa_messages[index]["role"] == "assistant"
+        ),
+        None
+    )
+
+for message_index, message in enumerate(st.session_state.qa_messages):
+    with st.chat_message(message["role"]):
+        st.markdown(normalize_math_markdown(message["content"]))
+        if message["role"] == "assistant" and message_index == last_assistant_index:
+            render_like_prompt(message["content"], f"qa_like_button_{message_index}")
+    if "image" in message and message["image"] is not None:
+            st.image(message["image"], width=300)
 
 if prompt:
     user_text = prompt.text
@@ -630,6 +701,7 @@ if prompt:
                 full_response += chunk.text
         full_response = normalize_math_markdown(full_response)
         st.markdown(full_response)
+        render_like_prompt(full_response, f"qa_like_button_new_{len(st.session_state.qa_messages)}")
         
     st.session_state.qa_messages.append({"role": "assistant", "content": full_response}) 
     if st.session_state.get("qa_save_history", False):
