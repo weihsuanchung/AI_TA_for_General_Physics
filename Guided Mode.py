@@ -125,6 +125,7 @@ if st.sidebar.button("Log out (登出)"):
         "student_id",
         "anonymous_id",
         "pre_test_done",
+        "post_test_done",
         "guided_messages",
         "show_lecture_notes",
         "guided_pdf_page",
@@ -136,32 +137,94 @@ if st.sidebar.button("Log out (登出)"):
     st.rerun()
 
 # ================= Pre-Test Survey Intercept Gate =================
+# if "pre_test_done" not in st.session_state:
+#     try:
+#         # Connect to Google Sheets
+#         credentials_dict = dict(st.secrets["connections"]["gsheets"])
+#         gc = gspread.service_account_from_dict(credentials_dict)
+#         SHEET_URL = "https://docs.google.com/spreadsheets/d/1BP0F_gTlwAJkcYFRqDDAnX3O4utJdnKg3pCthVBlHiI/edit?usp=sharing" 
+#         sh = gc.open_by_url(SHEET_URL)
+        
+#         # Read the second worksheet for pre-test records
+#         worksheet2 = sh.get_worksheet(1) 
+        
+#         existing_ids = worksheet2.col_values(1)
+        
+#         # Check if the current anonymous ID is already in the pre-test records
+#         if st.session_state.anonymous_id in existing_ids:
+#             st.session_state.pre_test_done = True
+#         else:
+#             st.session_state.pre_test_done = False
+            
+#     except Exception as e:
+#         st.error(f"Failed to read pre-test status: {e}")
+#         st.stop()
 if "pre_test_done" not in st.session_state:
     try:
-        # Connect to Google Sheets
         credentials_dict = dict(st.secrets["connections"]["gsheets"])
         gc = gspread.service_account_from_dict(credentials_dict)
-        SHEET_URL = "https://docs.google.com/spreadsheets/d/1BP0F_gTlwAJkcYFRqDDAnX3O4utJdnKg3pCthVBlHiI/edit?usp=sharing" 
+        SHEET_URL = "https://docs.google.com/spreadsheets/d/1BP0F_gTlwAJkcYFRqDDAnX3O4utJdnKg3pCthVBlHiI/edit?usp=sharing"
         sh = gc.open_by_url(SHEET_URL)
-        
-        # Read the second worksheet for pre-test records
+    
         worksheet2 = sh.get_worksheet(1) 
-        
         existing_ids = worksheet2.col_values(1)
         
-        # Check if the current anonymous ID is already in the pre-test records
         if st.session_state.anonymous_id in existing_ids:
             st.session_state.pre_test_done = True
         else:
             st.session_state.pre_test_done = False
+            st.session_state.post_test_done = True 
             
     except Exception as e:
         st.error(f"Failed to read pre-test status: {e}")
         st.stop()
 
+if "post_test_done" not in st.session_state:
+    try:
+        credentials_dict = dict(st.secrets["connections"]["gsheets"])
+        gc = gspread.service_account_from_dict(credentials_dict)
+        SHEET_URL = "https://docs.google.com/spreadsheets/d/1BP0F_gTlwAJkcYFRqDDAnX3O4utJdnKg3pCthVBlHiI/edit?usp=sharing"
+        sh = gc.open_by_url(SHEET_URL)
+        
+        worksheet4 = sh.get_worksheet(4) 
+        existing_ids_post = worksheet4.col_values(1)
+        
+        if st.session_state.anonymous_id in existing_ids_post:
+            st.session_state.post_test_done = True
+        else:
+            st.session_state.post_test_done = False
+
+    except Exception as e:
+        st.error(f"Failed to read post-test status: {e}")
+        st.stop()
+# ================= Post-Test Status Check =================
+# if "pre_test_done" not in st.session_state or "post_test_done" not in st.session_state:
+#     try:
+#         credentials_dict = dict(st.secrets["connections"]["gsheets"])
+#         gc = gspread.service_account_from_dict(credentials_dict)
+#         SHEET_URL = "https://docs.google.com/spreadsheets/d/1BP0F_gTlwAJkcYFRqDDAnX3O4utJdnKg3pCthVBlHiI/edit?usp=sharing" 
+#         sh = gc.open_by_url(SHEET_URL)
+        
+#         worksheet2 = sh.get_worksheet(1) 
+#         existing_ids = worksheet2.col_values(1)
+        
+#         if st.session_state.anonymous_id in existing_ids:
+#             st.session_state.pre_test_done = True
+#             st.session_state.needs_post_test = True # if the user has filled the pre-test, then the user needs to fill the post-test
+#         else:
+#             st.session_state.pre_test_done = False
+#             st.session_state.needs_post_test = False # id don't exist in pre-test, then the user doesn't need to fill the post-test
+            
+#         # set the default value of post_test_done to False
+#         st.session_state.post_test_done = False 
+            
+#     except Exception as e:
+#         st.error(f"Failed to read pre-test status: {e}")
+#         st.stop()
+
 # If no, show the pre-test survey form and block access to the teaching assistant until they complete it
-if not st.session_state.pre_test_done:
-    st.title("📝 AI Literacy Survey (pre-test)")
+if st.session_state.pre_test_done and not st.session_state.post_test_done:
+    st.title("📝 AI Literacy Survey (post-test 後測)")
     st.info("Instructions: Please indicate your level of agreement with the following statements. This will help us understand your current familiarity with AI and physics. (請根據以下陳述選擇你的認同程度，這將幫助我們了解你目前對 AI 和物理的熟悉程度。)")
     
     with st.form("pre_test_form"):
@@ -185,17 +248,25 @@ if not st.session_state.pre_test_done:
                 gc = gspread.service_account_from_dict(credentials_dict)
                 SHEET_URL = "https://docs.google.com/spreadsheets/d/1BP0F_gTlwAJkcYFRqDDAnX3O4utJdnKg3pCthVBlHiI/edit?usp=sharing"
                 sh = gc.open_by_url(SHEET_URL)
-                worksheet2_write = sh.get_worksheet(1)
+                worksheet5_write = sh.get_worksheet(4)
                 # Write to the second worksheet
-                worksheet2_write.append_row(row_to_append)
+                worksheet5_write.append_row(row_to_append, table_range="A1")
                 
                 # Mark as completed and refresh the page
-                st.session_state.pre_test_done = True
-                st.success("✅ Pre-test submitted successfully! You can now access the AI teaching assistant.")
+                st.session_state.post_test_done = True
+                st.success("✅ Post-test submitted successfully! You can now access the AI teaching assistant.")
                 st.rerun()
             except Exception as e:
-                st.error(f"Pre-test submission failed: {e}")
+                st.error(f"Post-test submission failed: {e}")
 
+    st.stop()
+elif not st.session_state.pre_test_done and st.session_state.post_test_done:
+    st.title("🚀 Welcome to Luminer！")
+    st.info("Since the AI literacy survey is over for new users, you can now access the AI teaching assistant directly!")
+    if st.button("👉 go to Luminer"):
+        st.session_state.post_test_done = True
+        st.session_state.pre_test_done = True
+        st.rerun()
     st.stop()
 # =====================================================
 
